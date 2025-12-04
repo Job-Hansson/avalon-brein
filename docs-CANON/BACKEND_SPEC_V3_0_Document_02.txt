@@ -1,0 +1,348 @@
+BACKEND SPEC V3.0 — DOCUMENT 02
+BACKEND FUNCTIONAL IMPLEMENTATION SPECIFICATION
+==============================================
+
+Doel van dit document
+---------------------
+Document 02 beschrijft alle backend-implementaties die noodzakelijk zijn om AVALON operationeel te maken.
+Het legt exact vast HOE elke functie moet worden gebouwd, opgedeeld in:
+
+- Engines (core modules)
+- Services (IO- en infrastructuurcomponenten)
+- Functie-eisen per module
+- Input- en outputstructuren (JSON)
+- Validatieregels
+- Foutcodes & error-handling
+- Interactie tussen lagen
+- Veiligheids- en governance-eisen
+
+----------------------------------------------------------------------
+1. Backend Architectuur (Implementation-Level)
+----------------------------------------------------------------------
+De backend bestaat uit vier bouwlagen:
+
+1) Routing Layer (REST API)
+2) Engine Layer (business logic)
+3) Service Layer (IO + external integrations)
+4) Governance Layer (commit rules, DR, validation)
+
+Alle calls komen van ChatGPT als JSON POST‐requests.
+
+----------------------------------------------------------------------
+2. Routing Layer (REST API)
+----------------------------------------------------------------------
+API Endpoints moeten minimaal bevatten:
+
+POST /calendar/create
+POST /calendar/update
+POST /calendar/delete
+POST /calendar/recurring
+
+POST /ics/send
+POST /ics/retry
+
+POST /logbook/write
+POST /logbook/generate
+
+POST /finance/update
+POST /finance/generate
+
+POST /notulen/store
+POST /notulen/get
+
+POST /ml/compute
+POST /ml/suggest
+
+POST /behaviour/update
+POST /behaviour/validate
+
+POST /commit/request
+POST /commit/apply
+
+POST /dr/check
+POST /dr/resolve
+
+Elke endpoint:
+
+- accepteert alleen JSON
+- valideert via schema (pydantic/cerberus)
+- heeft consistente foutcodes
+- mag NOOIT natuurlijke taal accepteren
+
+----------------------------------------------------------------------
+3. Engines — Implementatievereisten
+----------------------------------------------------------------------
+Hier volgt de detailimplementatie voor elke engine.
+
+======================================================================
+3.1 CalendarEngine
+======================================================================
+Verantwoordelijkheden:
+- Eventcreatie in Google Calendar
+- ICS generaties voor Outlook
+- Recurring events
+- Conflict-checks
+- Domein-kleurlogica toewijzen
+- Projectkoppelingen verwerken
+
+Input JSON:
+{
+  "title": "...",
+  "datetime": "...",
+  "domain": "VSB | Prive | School | Bijbaan",
+  "tags": ["afspr"],
+  "project": "optional",
+  "location": "optional",
+  "duration": 60
+}
+
+Functionaliteit:
+- Validatie van domein
+- Instantiekleur kiezen
+- Google event aanmaken
+- ICS genereren indien VSB
+- Vergaderingen koppelen aan vorige actiepunten
+- Teruggeven van eventID / ICS metadata
+
+Error Cases:
+- 400: invalid domain
+- 422: date invalid
+- 500: Google API failure
+- 503: ICS mail failure
+
+======================================================================
+3.2 ReminderEngine
+======================================================================
+Verantwoordelijkheden:
+- Reminders aanmaken via Google Calendar
+- Escalatie automatisch toepassen
+- Analyse van moveCount & procrastination
+
+Reminders krijgen verplichte velden:
+{
+  "title": "...",
+  "datetime": "...",
+  "domain": "...",
+  "tags": ["remin"],
+  "priority": "low | medium | high"
+}
+
+Escalatieregel:
+- Elke keer dat een reminder wordt uitgesteld:
+  moveCount++
+  priority escalates until high
+
+======================================================================
+3.3 LogbookEngine
+======================================================================
+Verantwoordelijkheden:
+- Daglogs verwerken
+- Weeklogs genereren (.xlsx)
+- Validatie van kolommen
+
+Daglog input:
+{
+  "activity": "...",
+  "domain": "...",
+  "motivation": 1-10,
+  "stress": 1-10,
+  "status": "Done | Moved | Not Done"
+}
+
+Excel structuur vereisten:
+Kolommen:
+- Activiteit
+- Domein
+- Motivatie
+- Stress
+- Status
+- moveCount
+- Date
+
+======================================================================
+3.4 FinanceEngine
+======================================================================
+Verantwoordelijkheden:
+- Potjes updaten
+- Inkomende bedragen verwerken
+- Finance.xlsx genereren
+- Validatie dat GEEN rekeningnummers worden opgeslagen
+
+Finance input:
+{
+  "income": 2100,
+  "distribution": {
+    "plezier": 200,
+    "kleding": 150,
+    "poker": 100,
+    "spaar": 300
+  }
+}
+
+Finance.xlsx moet twee sheets hebben:
+- Potjes
+- Transacties
+
+======================================================================
+3.5 BehaviourEngine
+======================================================================
+Verantwoordelijkheden:
+- behaviour.avl lezen
+- validatie van keys
+- SEMVER bump toepassen
+- rule updates implementeren
+
+Validatie-eisen:
+- JSON parsebaar
+- verplichte secties aanwezig
+- geen verboden wijzigingen
+- SEMVER correct verhogen
+
+======================================================================
+3.6 MLBehaviourEngine
+======================================================================
+Verantwoordelijkheden:
+- ML metrics berekenen
+- Suggesties genereren
+- Nooit patches toepassen
+- JSON output genereren voor ChatGPT
+
+Output voorbeeld:
+{
+  "patches": [
+    {
+      "type": "reminder_freq_increase",
+      "severity": "medium",
+      "proposed_change": {
+        "reminderEscalationLogic": { ... }
+      }
+    }
+  ]
+}
+
+======================================================================
+3.7 PersonaEngine
+======================================================================
+Backend doet niet aan toonmodulatie, maar:
+
+Persona metadata wordt doorgegeven zodat ChatGPT antwoorden correct formatteert.
+
+======================================================================
+3.8 AutoModeEngine
+======================================================================
+Backend moet auto-mode detecteren via metadata:
+{
+  "autoMode": true
+}
+
+Beperkingen:
+- Geen commits
+- Geen behaviour updates
+- Geen ML
+- Alleen beperkte commandoset
+
+======================================================================
+3.9 DashboardEngine
+======================================================================
+Verantwoordelijkheden:
+- JSON dashboards genereren voor ChatGPT:
+  * Weekoverzicht
+  * Stress/motivatie grafieken
+  * Procrastination metrics
+  * Agenda highlights
+
+======================================================================
+3.10 NotulenEngine
+======================================================================
+Functies:
+- Notulen opslaan in /notulen/{project}/{date}.md
+- Actiepunten extraheren
+- Actiepunten voorbereiden voor volgende meeting
+
+======================================================================
+3.11 AlertEngine
+======================================================================
+Verantwoordelijkheden:
+- INFO, IMPORTANT, CRITICAL alerts genereren
+- TelegramService aanroepen
+
+CRITICAL moet binnen 3 seconden verstuurd.
+
+======================================================================
+3.12 AuditEngine
+======================================================================
+Verantwoordelijkheden:
+- Weekly audit genereren
+- Gedragswijzigingen loggen
+- Commits loggen
+
+----------------------------------------------------------------------
+4. Service Implementaties
+----------------------------------------------------------------------
+4.1 GitHubService
+------------------
+Functies:
+- Bestanden lezen, schrijven
+- Commits maken
+- Hashing uitvoeren
+- Versies vergelijken
+- DR-restore uitvoeren
+
+4.2 GoogleCalendarService
+-------------------------
+- OAuth client init
+- events aanmaken/updaten
+- recurring events
+- detecteren van wijzigingen
+
+4.3 ICSSenderService
+--------------------
+- ICS genereren volgens RFC5545
+- ICS via mail versturen
+- Retry mechanisme
+
+4.4 TelegramService
+-------------------
+- Verstuur messages naar bot API
+
+4.5 XLSXService
+----------------
+- Excel genereren
+- Validatie
+- Schema enforcement
+
+----------------------------------------------------------------------
+5. Schema Validatie (Verplicht)
+----------------------------------------------------------------------
+Alle input moet voldoen aan pydantic/cerberus schema's.
+
+Types:
+- datetime: ISO 8601
+- domain: enum
+- tags: lijst van strings
+- status: enum
+- motivation/stress: int 1–10
+
+----------------------------------------------------------------------
+6. Error Handling
+----------------------------------------------------------------------
+Backend MOET consistente foutcodes gebruiken:
+
+400: invalid input  
+401: unauthorized (OAuth failure)  
+404: file not found  
+409: conflict  
+422: validation error  
+500: internal error  
+503: external service unavailable  
+
+----------------------------------------------------------------------
+7. DR Interaction Requirements
+----------------------------------------------------------------------
+Engines mogen DR triggeren, maar DR wordt uitgevoerd door DRService.
+
+Voorbeeld:
+- Invalid XLSX → DRTrigger("logbook_corrupt")
+
+----------------------------------------------------------------------
+Einde Document 02

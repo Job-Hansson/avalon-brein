@@ -1,0 +1,298 @@
+BACKEND SPEC V3.0 — DOCUMENT 05
+BACKEND SECURITY, PERFORMANCE & TESTING SPECIFICATION
+=====================================================
+
+Doel van dit document
+---------------------
+Document 05 definieert ALLE backendgerichte:
+- securityregels,
+- prestatienormen,
+- testvereisten,
+- validatiecriteria,
+- toegangslagen,
+- fail-safes,
+- en integriteitscontroles
+
+die noodzakelijk zijn om de Avalon-backend betrouwbaar, veilig en voorspelbaar te laten draaien.
+
+Deze specificatie is strikter en technischer dan Document 05 van MEGA OPDRACHT V6.0, 
+omdat zij gericht is op ontwikkelaars en de daadwerkelijke implementatie.
+
+----------------------------------------------------------------------
+1. Security Architecture Overview
+----------------------------------------------------------------------
+De backend gebruikt een gelaagde beveiligingsarchitectuur:
+
+Layer 1 — Input Validation (JSON command schema)
+Layer 2 — Behaviour Constraints (rule priority + persona + auto-mode)
+Layer 3 — Governance Enforcement (commit rules + ML constraints)
+Layer 4 — Service Isolation (GitHub API, Google API, ICS mail)
+Layer 5 — Storage Integrity (hashing + DR)
+Layer 6 — Scheduler Protections
+Layer 7 — Audit Trail Enforcement
+
+Backend mag NOOIT acties uitvoeren buiten deze lagen.
+
+----------------------------------------------------------------------
+2. API Security Constraints
+----------------------------------------------------------------------
+Backend accepteert *uitsluitend gestructureerde JSON commands*.
+
+2.1 Allowed Content
+- Strings, integers, floats
+- ISO8601 datums
+- Booleans
+- Predefined enumerations
+
+2.2 Forbidden Content
+- Ruwe natuurlijke taal
+- HTML/JS/SQL
+- Onbekende keys
+- Commands zonder “action”
+- Commands zonder herkenbare “data” structuur
+
+2.3 Schema Enforcement
+Elke inkomende request MOET gevalideerd worden via een officieel JSON schema.
+
+Zonder schema-match → HTTP 400 + reject.
+
+2.4 AutoMode Restrictions
+Als “autoMode = true” in context:
+- commit verboden
+- ML patching verboden
+- DR wijzigingen verboden
+- gevaarlijke acties (delete, major changes) verboden
+
+----------------------------------------------------------------------
+3. Authentication & Secrets Management
+----------------------------------------------------------------------
+3.1 Secrets
+Backend gebruikt:
+- GitHub PAT
+- Google Service Account credentials
+- Telegram bot token
+- Mailing service credentials
+
+Deze moeten ALLEMAAL:
+- in Railway secrets opgeslagen worden,
+- NOOIT in repo,
+- NOOIT in logs,
+- NOOIT via ChatGPT onthuld worden.
+
+3.2 Secrets Rotatie
+- Secret rotation interval: MINIMAAL 6 maanden
+- Bij DR-fout in de ICS mail service → nieuwe SMTP/API credentials verplicht
+
+----------------------------------------------------------------------
+4. GitHub Security Rules
+----------------------------------------------------------------------
+4.1 Repositories
+Backend mag ALLEEN schrijven naar:
+- avalon-brein
+
+Backend mag NOOIT schrijven naar:
+- avalon-backend
+
+4.2 Commit Rules
+Backend commit ALLEEN:
+- na user-goedkeuring,
+- na passing validation,
+- na hashcheck,
+- na auditlogaanmaak.
+
+4.3 Forbidden Actions
+Backend mag NIET:
+- force-push uitvoeren,
+- branches verwijderen,
+- history manipuleren,
+- bestanden buiten afgesproken structuur plaatsen,
+- willekeurige directories aanmaken.
+
+4.4 File Permissions
+Backend moet ALLEEN wijzigingen doen binnen:
+- /rules-and-behaviour
+- /chats
+- /logbooks
+- /finance
+- /audit-log
+- /notulen
+
+----------------------------------------------------------------------
+5. Calendar & ICS Security Rules
+----------------------------------------------------------------------
+5.1 VSB → ICS ONLY
+Backend mag ICS ALLEEN genereren als:
+- domain = VSB
+- action = create_event | update_event | delete_event
+
+5.2 ICS Sanitization
+ICS mag GEEN:
+- gevoelige metadata bevatten,
+- ongeldige characters bevatten,
+- timezones missen,
+- incorrecte UID of PRODID gebruiken.
+
+5.3 ICS Retry Safety
+Retry max: 3
+Daarna → DR trigger.
+
+5.4 Google API Security
+GoogleCalendarService moet:
+- alleen service accounts gebruiken,
+- nooit user credentials opslaan,
+- ratelimits respecteren,
+- 429 errors clean afhandelen.
+
+----------------------------------------------------------------------
+6. DR & Integrity Protections
+----------------------------------------------------------------------
+De backend moet DR activeren bij:
+- corrupt behaviour.avl,
+- corrupt xlsx,
+- missing files,
+- GitHub commit errors,
+- ICS sending failures,
+- inconsistent metadata.
+
+6.1 DR Freeze Rules
+Tijdens DR:
+- ML uitgeschakeld,
+- commits geblokkeerd,
+- scheduler gedeeltelijk gepauzeerd,
+- behaviour updates geblokkeerd.
+
+6.2 Hash Enforcement
+Voor elk kritiek bestand:
+- bereken shaBefore
+- valideer structuur
+- na wijziging → shaAfter
+
+Mismatch → DR trigger.
+
+6.3 Safe Restore
+Backend mag ALLEEN herstellen met bestanden uit GitHub history.
+
+----------------------------------------------------------------------
+7. Performance Requirements (Backend-Level)
+----------------------------------------------------------------------
+7.1 SLA-achtige targets
+- JSON command latency: < 200 ms
+- Calendar API calls: < 1.5 sec
+- ICS generation: < 2 sec
+- Logbook XLSX generation: < 3 sec
+- Finance XLSX generation: < 3 sec
+- Weekly close full cycle: max 20 sec backend-time
+
+7.2 Non-Blocking Scheduler
+Scheduler mag NOOIT backend calls blokkeren.
+
+7.3 Async Requirements
+ICS sending moet async gebeuren, met retry queue.
+
+----------------------------------------------------------------------
+8. Load & Stress Behaviour
+----------------------------------------------------------------------
+Bij grote volumes:
+- ML calculations moeten degrade gracefully (nooit crashen, alleen minder precieze voorstellen).
+- XLSX generation moet stabiel blijven ongeacht loggrootte.
+- Notulen parsing moet fallback hebben bij extreem lange bestanden.
+
+----------------------------------------------------------------------
+9. Testing Specification (Backend-Side)
+----------------------------------------------------------------------
+Backend tests zijn opgesplitst in 8 categorieën:
+
+9.1 Unit Tests
+- elke engine afzonderlijk
+- JSON schema tests
+- ICS format tests
+- XLSX structure tests
+
+9.2 Integration Tests
+- GitHubService end-to-end
+- GoogleCalendarService gedrag
+- ICS sending pipeline
+
+9.3 Behaviour Tests
+- rulePriorityModel
+- persona unaffected logic
+- auto-mode restrictions
+- ML-safety enforcement
+
+9.4 ML Tests
+- metric calculation correctness
+- suggestion validity
+- patch safety constraints
+
+9.5 DR Tests
+- corrupt behaviour.avl → DR
+- missing chatlog → DR
+- corrupt logbook.xlsx → DR
+- ICS failure → DR
+- GitHub push fail → DR
+
+9.6 Scheduler Tests
+- 17:00 log trigger
+- 08:00 weekclose
+- 09:00 finance
+- retry logic
+
+9.7 Performance Tests
+- load testing
+- latency testing
+- file generation speed
+
+9.8 Security Tests
+- injection attempts → reject
+- invalid JSON → reject
+- missing keys → reject
+
+----------------------------------------------------------------------
+10. Logging & Monitoring
+----------------------------------------------------------------------
+Backend MOET loggen:
+- elke fout,
+- elke ICS poging,
+- elke DR start,
+- elke commit-actie,
+- elke audit entry.
+
+Logging mag NOOIT:
+- secrets bevatten,
+- persoonlijke data bevatten,
+- rekeningen of gevoelige info bevatten.
+
+----------------------------------------------------------------------
+11. Error Model
+----------------------------------------------------------------------
+Backend foutcodes:
+
+400 — INVALID_COMMAND  
+401 — UNAUTHORIZED  
+403 — FORBIDDEN_OPERATION  
+409 — CONFLICT  
+422 — VALIDATION_FAILED  
+500 — INTERNAL_ERROR  
+503 — SERVICE_UNAVAILABLE  
+
+Bij 500/503 → scheduler blijft draaien, maar ICS/ML worden gepauzeerd.
+
+----------------------------------------------------------------------
+12. Persona Awareness (Backend-Level)
+----------------------------------------------------------------------
+Backend verwerkt persona alleen als metadata maar:
+
+- backend mag gedrag NIET aanpassen op basis van persona  
+- backend moet persona doorgeven naar ChatGPT in responses  
+
+----------------------------------------------------------------------
+13. Auto-Mode Restrictions (Backend-Level)
+----------------------------------------------------------------------
+Als autoMode=true:
+- alle gevaarlijke endpoints blokkeren
+- commando's die tot commit zouden leiden → FORBIDDEN_OPERATION
+- behaviour patches → FORBIDDEN_OPERATION
+- DR resolutie → FORBIDDEN_OPERATION
+
+----------------------------------------------------------------------
+Einde Document 05

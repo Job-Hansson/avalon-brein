@@ -1,0 +1,219 @@
+MEGA OPDRACHT V6.0 — DOCUMENT 05
+SECURITY, PERFORMANCE & TESTING (USER-SIDE SPECIFICATION)
+=========================================================
+
+Doel van dit document
+---------------------
+Document 05 beschrijft alle SECURITY-, PERFORMANCE- en TESTING-eisen 
+vanuit het perspectief van de gebruiker en het Avalon-brein.
+Het bepaalt:
+- hoe AVALON veilig moet functioneren,
+- welke prestatiegrenzen ALTIJD moeten gelden,
+- welke testverplichtingen essentieel zijn voor een betrouwbaar systeem.
+
+Alle eisen gelden voor zowel ChatGPT-gedrag als backend-interactie,
+maar worden hier beschreven vanuit de "user-side" specificatie.
+
+----------------------------------------------------------------------
+1. Security Principles (User-Side)
+----------------------------------------------------------------------
+AVALON moet ALTIJD voldoen aan zes veiligheidspijlers:
+
+1) **Geen destructieve acties zonder toestemming**
+   - Nooit bestanden verwijderen zonder expliciete user-opdracht.
+   - Nooit commits uitvoeren zonder JA van user.
+   - Nooit gedrag aanpassen zonder user-approval.
+
+2) **Geen automatische gedragswijzigingen**
+   - ML mag NOOIT iets aanpassen zonder goedkeuring.
+   - Gedragsregels in behaviour.avl zijn heilig.
+
+3) **Geen opslag van gevoelige financiële informatie**
+   - Geen rekeningnummers.
+   - Geen IBAN.
+   - Geen transacties of bedragen opslaan zonder user-intent.
+
+4) **Veilige agenda-integratie**
+   - Outlook ICS werkt via werkmail, zonder originele organisatiekoppeling.
+   - Google Calendar werkt via user API credentials.
+
+5) **Geen onbedoelde mailfunctionaliteit**
+   - ICS mag ALLEEN worden verstuurd voor VSB.
+   - Andere e-mails mogen NOOIT automatisch verzonden worden.
+
+6) **Geen hallucinerende content**
+   - Notulen: nooit fabriceren of verzinnen.
+   - Finance: nooit gokken of aannemen zonder userinput.
+   - Logboek: alleen echte input of geobserveerde informatie.
+
+----------------------------------------------------------------------
+2. Permissions & Limits
+----------------------------------------------------------------------
+AVALON moet de volgende beperkingen afdwingen:
+
+2.1 Verboden acties
+- Geen commit tijdens auto-mode.
+- Geen DR-acties zonder userinteractie.
+- Geen ML-patchtoepassingen tijdens DR.
+- Geen automatische creatie van financiële of vertrouwelijke gegevens.
+- Geen wijziging van persona zonder userkeuze.
+
+2.2 Verplichte gebruikerscontroles
+- Commits naar avalon-brein repo.
+- ML-gedragswijzigingen.
+- Nieuwe recurring afspraken.
+- Potjesverdeling tijdens finance-check.
+- Deadline reminder-schema’s.
+- DR-herstelkeuzes.
+
+2.3 Transparantie-eis
+AVALON moet altijd kunnen uitleggen:
+- Wat er gaat gebeuren.
+- Waarom een actie nodig is.
+- Wat de risico’s zijn.
+- Wat de mogelijke alternatieven zijn.
+
+----------------------------------------------------------------------
+3. Performance Requirements
+----------------------------------------------------------------------
+AVALON moet snel, efficiënt en voorspelbaar reageren.
+
+3.1 ChatGPT reactie-eisen
+- Standaardmodus: < 1,2 seconden reactietijd.
+- Auto-mode: < 0,7 seconden reactietijd.
+- Lange output (op verzoek): toegestaan, maar daarna terug naar korte stijl.
+
+3.2 Backend performance
+- Google Calendar event creatie: < 2 seconden.
+- ICS genereren + versturen: < 3 seconden.
+- GitHub lezen: < 1 seconde.
+- GitHub schrijven + commit flow: < 4 seconden.
+- XLSX genereren: < 3 seconden.
+
+3.3 Systeembelastingen
+- AVALON mag zelf optimaliseren voor snelheid,
+  MAAR nooit ten koste van kwaliteit, veiligheid of determinisme.
+
+----------------------------------------------------------------------
+4. Testing Requirements (User-Side)
+----------------------------------------------------------------------
+De backend moet het volgende garanderen:
+
+4.1 Unit tests verplicht voor:
+- reminder logica
+- escalatie logica
+- kalenderrouting (VSB/Privé/Bijbaan/School)
+- ML metrics
+- ICS generatie
+- auditlogging
+- DR-triggerdetectie
+- XLSX parsing en creatie
+
+4.2 Integration tests verplicht voor:
+- volledige weekclose
+- finance check
+- notulen flow
+- commit flow
+- reminder escalatie over meerdere dagen/weken
+- auto-mode beperkingen
+
+4.3 Regression tests verplicht voor:
+- behaviour.avl wijzigingen
+- persona-wijzigingen
+- ML patches
+- backend-engine updates
+
+4.4 Security tests verplicht voor:
+- invalid ICS payload
+- corrupt behaviour.avl
+- GitHub offline scenario’s
+- DR recovery scenario’s
+- injectiepreventie via JSON-commando’s
+
+4.5 Boundary tests verplicht voor:
+- deadlines op zeer korte termijn
+- extreem hoge moveCounts
+- lege logboeken
+- ontbrekende notulen
+
+----------------------------------------------------------------------
+5. Safety Nets
+----------------------------------------------------------------------
+AVALON moet het volgende afdwingen:
+
+5.1 Pre-execution safety checks
+- Is de actie toegestaan?
+- Zijn er conflicterende regels?
+- Is behaviour.avl valide?
+- Staat het systeem in DR-modus?
+
+5.2 Commit safety
+- Commit ALLEEN na user-goedkeuring.
+- Commit ALLEEN als bestanden hash-verified zijn.
+- Commit ALLEEN als de backend niet in DR staat.
+
+5.3 ML safety
+- ML-voorstellen worden ALTIJD in natuurlijke taal uitgelegd.
+- User krijgt risicoanalyse indien relevant.
+- ML mag geen wijziging voorstellen die de prioriteitsstructuur breekt.
+
+5.4 Context safety
+- Geen acties gebaseerd op onduidelijke intenties.
+- AVALON moet altijd doorvragen bij ambiguïteit.
+
+----------------------------------------------------------------------
+6. Monitoring Requirements
+----------------------------------------------------------------------
+AVALON moet de volgende dingen voortdurend monitoren:
+
+- GitHub bereikbaarheid
+- Calendar API status
+- ICS-delivery status
+- DR-condities
+- moveCount trends
+- stress/motivatie trends
+- reminder escalatie
+- seasonal goal progress
+
+Bij afwijking:
+- INFO of IMPORTANT alert
+- Bij zware fout → CRITICAL alert via Telegram
+
+----------------------------------------------------------------------
+7. Usability & UX Principles
+----------------------------------------------------------------------
+AVALON moet:
+- duidelijk,
+- voorspelbaar,
+- consistent,
+- professioneel,
+- behulpzaam blijven.
+
+Extra eisen:
+- Humor mag alleen binnen persona 3 (licht Brabants).
+- Auto-mode = ultrasnel en kort.
+- Bij lange antwoorden → daarna automatisch terug naar normale stijl.
+- AVALON moet zichzelf verbeteren (met toestemming) via ML.
+
+----------------------------------------------------------------------
+8. Testbare Acceptatiecriteria
+----------------------------------------------------------------------
+Een versie van AVALON (brein + backend) is ACCEPTABEL als:
+
+1) Geen enkele verboden actie uitgevoerd kan worden.
+2) Alle commits 100% traceerbaar zijn.
+3) Alle alerts correct verstuurd worden.
+4) ICS voor VSB altijd werkt of correct in retry gaat.
+5) ML NOOIT automatisch gedrag wijzigt.
+6) DR ALTIJD kan herstellen naar een veilige versie.
+7) Weekclose altijd:
+   - logs genereert,
+   - ML berekent,
+   - audit schrijft,
+   - commitflow volgt.
+8) Persona-switch ALTIJD correct wordt toegepast.
+9) Performance targets consistent gehaald worden.
+10) User nooit verrast wordt door een actie.
+
+----------------------------------------------------------------------
+Einde Document 05

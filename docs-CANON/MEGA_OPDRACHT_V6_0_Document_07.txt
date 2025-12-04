@@ -1,0 +1,314 @@
+MEGA OPDRACHT V6.0 — DOCUMENT 07
+DISASTER RECOVERY & STORAGE GOVERNANCE
+======================================
+
+Doel van dit document
+---------------------
+Document 07 legt ALLE regels vast voor AVALON’s:
+- Disaster Recovery (DR),
+- opslagbeheer,
+- file-integriteit,
+- herstelprocedures,
+- verificatiecycli,
+- commitveiligheid,
+- alertsystemen,
+- en de relatie tussen DR, behaviour.avl, logboeken, finance en notulen.
+
+Dit document zorgt ervoor dat AVALON *nooit* data verliest, *nooit* stilzwijgend fouten maskeert,
+en altijd een veilige herstelroute heeft.
+
+Het vormt de eindlaag van de MEGA OPDRACHT V6.0.
+
+----------------------------------------------------------------------
+1. Kernprincipes van DR & Storage Governance
+----------------------------------------------------------------------
+1.1 Geen dataverlies  
+AVALON moet ALTIJD een herstelpad hebben naar de laatste veilige versie.
+
+1.2 Geen stille fouten  
+AVALON mag:
+- nooit doen alsof alles goed is,
+- nooit incomplete bestanden committen,
+- nooit inconsistentie maskeren,
+- nooit drijvende data negeren.
+
+1.3 Expliciete usercontrole  
+User beslist ALTIJD hoe te herstellen:
+- SAFE RESTORE
+- KEEP & REPAIR
+- CANCEL
+
+1.4 Alleen de “avalon-brein” repository is de bron van waarheid  
+Alle DR-acties zijn gebaseerd op GitHub’s officiële versiegeschiedenis.
+
+1.5 Hashing & integriteit  
+Alle kritieke bestanden worden geverifieerd met hashing:
+- behaviour.avl
+- logbooks
+- finance sheets
+- audit logs
+- notulen
+- chatlogs
+
+----------------------------------------------------------------------
+2. DR-Triggercondities
+----------------------------------------------------------------------
+DR moet automatisch starten bij:
+
+2.1 Corruptie in behaviour.avl  
+- invalid JSON  
+- ontbrekende verplichte secties  
+- prioriteitsmodel-inconsistentie  
+- hash mismatch  
+
+2.2 Corruptie in logbooks (.xlsx)  
+- onleesbare structuur  
+- ontbrekende tabbladen  
+- foutieve cellformats  
+
+2.3 Corruptie in finance .xlsx  
+- onleesbare structuur  
+- ontbrekende kolommen of formules  
+
+2.4 Notulen-fouten  
+- ontbrekende projectfolder  
+- ontbrekende notulenbestanden  
+- corrupte markdown  
+
+2.5 GitHub commit failure  
+- write attempted > retry limit  
+- opslag niet consistent  
+
+2.6 ICS failure  
+- ICS kan niet worden afgeleverd  
+- ICS generator faalt > retry limit  
+
+2.7 Chatlog-missing  
+- /chats/YYYY-WW-Chat.md ontbreekt  
+- bestand is leeg of beschadigd  
+
+2.8 Audit-log corruptie  
+- audit niet leesbaar  
+- onmogelijke entries  
+
+----------------------------------------------------------------------
+3. DR-Proces (8 stappen)
+----------------------------------------------------------------------
+Het volledige DR-proces bestaat uit exact deze volgorde:
+
+**Stap 1 – Freeze systeem**
+- Geen commits  
+- Geen ML  
+- Geen regelwijzigingen  
+- Geen persona-updates  
+
+**Stap 2 – Stuur CRITICAL alert (<3 sec)**
+- Via Telegram  
+- Met bestandstype en foutmelding  
+
+**Stap 3 – Diagnosefase**
+Backend identificeert het probleem:
+- welk bestand,
+- wat ontbreekt,
+- welke versie fout is,
+- welke safe versions beschikbaar zijn.
+
+**Stap 4 – Zoek laatste veilige versie**
+Via GitHub history:
+- Bestandsdiff genereren  
+- Hashes vergelijken  
+- Lijst van mogelijke restore-punten tonen  
+
+**Stap 5 – User krijgt herstelopties**
+1) **SAFE RESTORE** (meest betrouwbaar)
+2) **KEEP & REPAIR** (alleen voor gevorderd)
+3) **CANCEL** (freeze blijft actief)
+
+**Stap 6 – Herstel uitvoeren**
+- Safe versie terugzetten  
+- Of repair log uitvoeren (met validatie)  
+- Geen improvisatie, nooit data verzinnen  
+
+**Stap 7 – Validatie van herstel**
+- JSON-validatie  
+- XLSX schema-check  
+- notulenstructuur-check  
+- chatlogcontrole  
+- hashverificatie  
+
+**Stap 8 – Audit-log + unfreeze**
+Audit-item wordt toegevoegd:
+- fouttype  
+- herstelmethode  
+- userkeuze  
+- timestamp  
+- commit SHA  
+
+Daarna:
+- systeem unfreeze  
+- normale werking hervat  
+
+----------------------------------------------------------------------
+4. Opslagstructuur (Verplicht)
+----------------------------------------------------------------------
+Deze structuur moet ALTIJD bestaan:
+
+/rules-and-behaviour  
+    behaviour.avl  
+
+/chats  
+    YYYY-WW-Chat.md  
+
+/logbooks  
+    YYYY-WW-logbook.xlsx  
+
+/finance  
+    YYYY-WW-finance.xlsx  
+
+/audit-log  
+    YYYY-WW-audit.md  
+
+/notulen  
+    /{project}/{YYYY-MM-DD}.md  
+
+DR mag NOOIT bestanden of mappen aanmaken buiten deze structuur.
+
+----------------------------------------------------------------------
+5. Integriteitsregels per bestandstype
+----------------------------------------------------------------------
+5.1 behaviour.avl  
+- JSON validatie verplicht  
+- SHA256 hashing verplicht  
+- schema volledigheid verplicht  
+
+5.2 logbooks  
+- Sheet “Week” verplicht  
+- Cellformatten moeten numeriek zijn  
+- Kolommen: activiteit, domein, motivatie, stress, status, moveCount  
+
+5.3 finance  
+- Sheets: “Potjes”, “Transacties” verplicht  
+- Geen negatieve waarden zonder user-intent  
+
+5.4 notulen  
+- Markdown verplicht  
+- Datum in bestandsnaam verplicht  
+- Projectfolder moet bestaan  
+
+5.5 chatlogs  
+- Mag nooit leeg zijn  
+- Weeknummer moet kloppen  
+- Chronologisch opgebouwd  
+
+5.6 audit logs  
+- MOET volledige entries bevatten  
+- Geen ontbrekende velden  
+- commit SHA verplicht  
+
+----------------------------------------------------------------------
+6. DR in relatie tot behaviour.avl
+----------------------------------------------------------------------
+Als behaviour.avl corrupt raakt:
+- systeem gaat DIRECT in DR  
+- persona blijft actief  
+- auto-mode blijft werken  
+- maar:
+  * geen gedragspatches  
+  * geen ML  
+  * geen commits  
+
+Na herstel:
+- SEMVER moet worden verhoogd  
+- audit-entry verplicht  
+- hash wordt vernieuwd  
+
+----------------------------------------------------------------------
+7. DR en ML-systemen
+----------------------------------------------------------------------
+Tijdens DR:
+- ML wordt volledig uitgeschakeld  
+- ML mag geen metrics berekenen  
+- ML mag geen voorstellen doen  
+- ML mag geen opgeslagen data lezen  
+
+Pas na volledige unfreeze wordt ML hervat.
+
+----------------------------------------------------------------------
+8. DR en Commit Governance
+----------------------------------------------------------------------
+Tijdens DR:
+- Commit = VERBODEN  
+
+Na herstel:
+- commit mag ALLEEN plaatsvinden:
+  * nadat user JA zegt  
+  * nadat validatie succesvol is  
+  * nadat audit-log geschreven is  
+
+----------------------------------------------------------------------
+9. DR en Financiële data
+----------------------------------------------------------------------
+Finance is bijzonder gevoelig:
+- AVALON mag NOOIT waarden raden  
+- AVALON mag NOOIT ontbrekende transacties aanvullen  
+- Bij corruptie:
+  * vorig weekbestand ophalen  
+  * user vragen ontbrekende info opnieuw te geven  
+
+----------------------------------------------------------------------
+10. DR en Notulen
+----------------------------------------------------------------------
+Als notulen ontbreken:
+- bestanden uit GitHub history herstellen  
+- nooit notulen fabriceren  
+- user informeren welke data verloren kan zijn  
+
+----------------------------------------------------------------------
+11. DR en Chatlogs
+----------------------------------------------------------------------
+Als chatlogs ontbreken:
+- reconstrueren uit backend cache (indien aanwezig)  
+- anders leeg templatebestand maken  
+- user laten aanvullen  
+
+----------------------------------------------------------------------
+12. DR en Alerts
+----------------------------------------------------------------------
+Critical alerts moeten bevatten:
+- type fout  
+- welk bestand  
+- impact  
+- wat AVALON heeft gedaan  
+- welke keuzes user heeft  
+
+Alerts moeten ook in audit zijn opgeslagen.
+
+----------------------------------------------------------------------
+13. DR Validatieproces per week
+----------------------------------------------------------------------
+Tijdens weekclose moet AVALON automatisch:
+
+- logbooks valideren  
+- finance sheets valideren  
+- chatlogs controleren  
+- notulenstructuur controleren  
+- behaviour.avl checken  
+- hashconsistentie bevestigen  
+
+Bij mislukking → DR starten.
+
+----------------------------------------------------------------------
+14. Definitieve garanties
+----------------------------------------------------------------------
+AVALON MOET GARANDEREN DAT:
+
+1) Geen gegevens verloren gaan  
+2) User altijd controle heeft  
+3) Alle fouten zichtbaar worden  
+4) Herstel altijd mogelijk is  
+5) Geen enkel bestand wordt overschreven zonder user-toestemming  
+6) DR logs altijd worden opgeslagen  
+7) behaviour.avl altijd herstelbaar is  
+
+----------------------------------------------------------------------
+Einde Document 07

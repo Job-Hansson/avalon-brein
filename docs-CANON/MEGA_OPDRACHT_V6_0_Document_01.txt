@@ -1,0 +1,263 @@
+MEGA OPDRACHT V6.0 — DOCUMENT 01
+AVALON SYSTEM OVERVIEW & MASTER ARCHITECTURE
+============================================
+
+Doel van dit document
+---------------------
+Dit document beschrijft het AVALON-systeem op hoog niveau:
+
+- Wat AVALON is en wat het moet kunnen.
+- Hoe de totale architectuur eruitziet (ChatGPT + Backend + GitHub + externe diensten).
+- Welke repositories er zijn en wat hun rollen zijn.
+- Hoe informatie stroomt tussen gebruiker, brein, backend en opslag.
+- Welke kernprincipes altijd moeten blijven gelden (veiligheid, determinisme, auditability).
+- Hoe alle andere documenten (V6.0 Doc 02–07 + Backend Spec V3.0) hierop aansluiten.
+
+Dit is de “routekaart” voor het hele AVALON-project.
+
+1. AVALON in één zin
+---------------------
+AVALON is een adaptieve virtuele assistent die jouw leven organiseert door:
+
+- je agenda’s (werk + privé + school + bijbaan) te beheren,
+- reminders slim in te plannen en te versterken als jij uitstelt,
+- logboeken per dag/week bij te houden,
+- je financiën in potjes te helpen structureren,
+- notulen en actiepunten uit vergaderingen te beheren,
+- dashboards te bouwen over je week, je stress, motivatie en doelen,
+- zichzelf langzaam slimmer te maken via ML-gedragsupdates,
+- altijd veilig, voorspelbaar en onder jouw controle te blijven.
+
+2. Hoofdrollen in het systeem
+-----------------------------
+Het systeem bestaat uit vier hoofdelementen:
+
+1) Jij (de gebruiker)
+   - Praat met AVALON via ChatGPT (tekst of audio).
+   - Keurt regels, gedrag en commits goed of af.
+   - Beslist over ML-voorstellen en gedragsupdates.
+   - Levert input: afspraken, taken, wat je gedaan hebt, geldverdeling, doelen, enz.
+
+2) ChatGPT / AVALON-brein (frontend-logica)
+   - Begrijpt natuurlijke taal.
+   - Gebruikt behaviour.avl (regels) om consequent te reageren.
+   - Zet jouw verzoeken om in gestructureerde backend-commando’s (JSON).
+   - Leest en verwijst naar data uit de GitHub “avalon-brein”-repo (via backend).
+   - Houdt zich aan persona, auto-mode, veiligheids- en gedragsregels.
+   - Vraagt altijd toestemming voor belangrijke dingen (commits, ML-updates, gedragwijzigingen).
+
+3) AVALON Backend (in “avalon-backend”)
+   - Draait op bijvoorbeeld Railway.
+   - Doet ALLE “echte wereld”-acties:
+     * GitHub lezen/schrijven (avalon-brein repo).
+     * Google Calendar events maken/updaten/verwijderen.
+     * ICS-bestanden genereren en per mail versturen naar Outlook.
+     * Telegram-alerts versturen.
+     * XLSX-bestanden genereren (logbook, finance).
+     * ML-metrics berekenen en voorstellen genereren.
+   - Ziet alleen gestructureerde JSON van ChatGPT, nooit ruwe taal.
+   - Is strikt, deterministisch en schema-gedreven.
+
+4) GitHub “avalon-brein” (geheugen & opslag)
+   - Bevat ALLE persistente gegevens en regels:
+     * behaviour.avl (gedragsregels + prioriteiten).
+     * /chats          → wekelijkse chatlog-bestanden.
+     * /logbooks       → wekelijkse logboek-Excel.
+     * /finance        → wekelijkse finance-Excel.
+     * /audit-log      → audit-logs per week.
+     * /notulen        → vergadernotulen per project per datum.
+   - Is de enkele “bron van waarheid”.
+   - Wordt alleen aangepast via de backend, en alleen na jouw expliciete “JA” voor commits.
+
+3. Twee GitHub repositories en hun rollen
+-----------------------------------------
+Er zijn twee strikt gescheiden repositories:
+
+1) avalon-brein (DATA & RULES)
+   - Doel: alle data, geheugen en regels van AVALON bewaren.
+   - Bevat:
+     * behaviour.avl  (de enige, canonieke gedragsfile).
+     * logboeken (per week, als .xlsx).
+     * finance-sheets (per week, als .xlsx).
+     * audit-logs (per week, als .md).
+     * notulen per project (md-bestanden).
+     * chatlogs per week (md-bestanden).
+     * ML-metrics en eventuele extra analytische bestanden.
+   - Eigenschappen:
+     * Geen secrets.
+     * Niet direct gemanipuleerd door ChatGPT; alleen via backendcommando’s.
+     * Geschikt als archief en voor terugkijken per week/project.
+
+2) avalon-backend (CODE & SERVICES)
+   - Doel: alle code en tooling die AVALON-acties uitvoert.
+   - Bevat:
+     * Backend code (API, engines, services).
+     * GitHubService (directe verbinding met avalon-brein).
+     * GoogleCalendarService.
+     * Email/ICS-service.
+     * TelegramService.
+     * SchedulerService.
+     * Tests, configuratie, Dockerfile, Railway-config.
+   - Eigenschappen:
+     * Gebruikt secrets (PAT, API keys, tokens) in environment variables.
+     * Geen persistente “state” in het bestandssysteem; state komt uit avalon-brein.
+
+4. R1-architectuur: Backend ↔ Brein via GitHub API
+---------------------------------------------------
+Belangrijke architectuurbeslissing: **R1**.
+
+- De backend heeft direct toegang tot de GitHub “avalon-brein”-repository via de GitHub API.
+- Alle lees- en schrijfbewerkingen gebeuren via deze API.
+- ChatGPT hoeft geen bestanden heen en weer te slepen; het brein praat in termen van:
+  “haal behaviour.avl op”, “schrijf logbook”, “commit wijzigingen”, etc.
+- Committen gebeurt ALTIJD:
+  * na validatie,
+  * na hashing,
+  * na auditlogging,
+  * en alleen na jouw expliciete toestemming.
+
+Voordelen:
+- Professionele, schaalbare architectuur.
+- Duidelijke scheiding tussen brein, backend en opslag.
+- Sterke DR-mogelijkheden (versiegeschiedenis, rollback).
+- Minder kans op sync-fouten.
+
+5. Kernprincipes van AVALON
+---------------------------
+Deze principes gelden ALTIJD:
+
+1) Single Source of Truth:
+   - “avalon-brein” is dé waarheid voor regels, logs, finance, notulen, audit en chats.
+
+2) Geen automatische destructieve acties:
+   - Nooit bestanden verwijderen zonder expliciet commando.
+   - Nooit gedrag/regels wijzigen zonder bevestiging.
+   - Nooit commits zonder jouw “JA”.
+
+3) Veiligheid boven snelheid:
+   - AVALON mag optimaliseren voor snelheid,
+   - maar nooit ten koste van kwaliteit, veiligheid of determinisme.
+
+4) Transparantie:
+   - AVALON moet altijd kunnen uitleggen:
+     * waarom hij iets doet,
+     * op basis van welke regels,
+     * met welke impact,
+     * met welke bronnen (bijv. welke weekfile / welke notulen).
+
+5) Auditability:
+   - Elke belangrijke wijziging (regels, ML-updates, DR-actie) komt in een audit-log.
+   - Weekly audit-bestanden leggen vast wat er is gebeurd.
+
+6) Geen hallucinerende opslag:
+   - Als er geen data is, zegt AVALON dat eerlijk.
+   - AVALON mag nooit fictieve notulen/logs/financiële gegevens verzinnen.
+
+6. Hoofdmodules & domeinen
+--------------------------
+AVALON dekt verschillende domeinen:
+
+1) Agenda & Reminders
+   - Privé, VSB, Bijbaan, School.
+   - Dubbele agenda (Google + Outlook ICS).
+   - Kleurcodes per domein & type (afspraak vs reminder).
+   - Complete logic voor overlapdetectie en bevestiging.
+
+2) Logboek & Weekoverzicht
+   - Dagelijkse logs (17:00).
+   - Weekly logfiles als .xlsx.
+   - MoveCount, procrastination, stress, motivatie.
+
+3) Finance & Potjes
+   - ABN + Revolut + gezamenlijke rekeningpotten.
+   - Wekelijkse finance-check (maandag 09:00).
+   - Geen opslag van rekeningnummers.
+
+4) Notulen & Projectactiepunten
+   - Na vergaderingen ([verga]) notulen vragen.
+   - Notulen per project opslaan.
+   - Actiepunten extraheren en doorschuiven naar volgende meetings.
+
+5) ML & Gedragsaanpassingen
+   - ML berekent trendlijnen en doet voorstellen.
+   - ML mag NOOIT zelf regels wijzigen.
+   - Jij keurt altijd de gedragswijzigingen.
+
+6) Persona & Auto-mode
+   - Drie persona’s (formeel, balanced, energiek/Brabants).
+   - Auto-mode speciaal voor in de auto:
+     * kort,
+     * veilig,
+     * geen commits of gevaarlijke acties.
+
+7) Alerts & DR
+   - Telegram voor:
+     * INFO, IMPORTANT, CRITICAL.
+   - DR-protocol bij corruptie, GitHub problemen, ICS fail.
+
+7. Globale informatieflows
+--------------------------
+Simplified high-level flow:
+
+1) Jij zegt iets tegen AVALON (in ChatGPT).
+2) ChatGPT:
+   - leest behaviour.avl (regels, via backend),
+   - interpreteert je vraag,
+   - kiest domein & tags,
+   - maakt gestructureerde “backend command”.
+
+3) Backend ontvangt JSON:
+   - valideert commando,
+   - voert actie uit (GitHub, Google, ICS, Telegram, XLSX).
+
+4) Backend retourneert resultaat (weer JSON).
+5) ChatGPT vertaalt resultaat terug naar jou als duidelijke uitleg of bevestiging.
+
+Voorbeeld:
+- Jij: “Zet elke dinsdag om 10:00 een VSB-vergadering in, tot eind juni.”
+- ChatGPT:
+  * herkent [afspr], domein VSB, recurring.
+  * maakt JSON voor backend.
+- Backend:
+  * maakt Google events,
+  * geneert ICS voor Outlook,
+  * logt alles in avalon-brein indien nodig.
+
+8. Relatie met andere documenten (V6.0 en V3.0)
+-----------------------------------------------
+Document 01 is de “kapstok”. De rest vult de details in:
+
+- MEGA OPDRACHT V6.0:
+  * Doc 02: Functionele specificatie (alle “wat moet AVALON doen?”).
+  * Doc 03: Behaviour & ML-regels.
+  * Doc 04: Operationele processen (week/dag).
+  * Doc 05: Security, performance & testing (user-side constraints).
+  * Doc 06: Versioning & governance.
+  * Doc 07: DR & storage governance (user-level).
+
+- BACKEND SPEC V3.0:
+  * Doc 01: Backend-overview (spiegelt dit document, maar voor engineers).
+  * Doc 02: Backend-implementatie van alle functies.
+  * Doc 03: Behaviour & ML-engine intern.
+  * Doc 04: Backend-workflows.
+  * Doc 05: Backend security/performance/testing.
+  * Doc 06: Backend versioning & change control.
+  * Doc 07: Backend DR & storage integrity.
+
+9. Wat altijd behouden moet blijven
+-----------------------------------
+- Twee repos: avalon-brein (data) + avalon-backend (code).
+- Backend direct naar GitHub via API (R1).
+- Geen destructieve acties zonder expliciete opdracht.
+- Committen alleen na expliciete “JA”.
+- ML mag nooit autonoom gedrag aanpassen.
+- Auto-mode is altijd veilig en kort.
+- Persona’s veranderen de toon, niet de regels.
+- GitHub is altijd de bron van waarheid.
+- DR-protocol staat boven alle normale flows.
+
+Einde Document 01
+-----------------
+Dit document is de basis voor ALLE andere Mega Opdracht V6.0-documenten. Alles wat daarna komt,
+mag deze principes verder uitwerken, maar nooit breken.
+

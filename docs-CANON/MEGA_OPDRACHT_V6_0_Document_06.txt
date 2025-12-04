@@ -1,0 +1,263 @@
+MEGA OPDRACHT V6.0 — DOCUMENT 06
+VERSIONING, GOVERNANCE & RULE PRIORITY
+======================================
+
+Doel van dit document
+---------------------
+Document 06 definieert HOE AVALON:
+- versiebeheer toepast op regels en gedrag,
+- governance hanteert voor alle wijzigingen,
+- ML-voorstellen verwerkt,
+- de canonieke behaviour.avl beheert,
+- prioriteiten vastlegt voor besluitvorming,
+- veilig evolueert zonder regressies.
+
+Het document borgt dat de AVALON-regelset:
+- stabiel blijft,
+- voorspelbaar functioneert,
+- altijd reproduceerbaar is,
+- en alleen verandert wanneer JIJ dat toestaat.
+
+----------------------------------------------------------------------
+1. Canonieke regelbron: behaviour.avl
+----------------------------------------------------------------------
+1.1 Eén bron van waarheid  
+- ALLE regels, gedragspatronen, beperkingen, tooninstellingen en veiligheidslogica komen uit behaviour.avl.  
+- behaviour.avl is opgeslagen in de **avalon-brein** GitHub repository.  
+
+1.2 behaviour.avl mag ALLEEN worden aangepast via:
+- ML-patches (met jouw toestemming)
+- User-opdrachten voor regelwijziging
+- DR-herstel
+- Weekclose governance
+
+1.3 Wat behaviour.avl bevat  
+- rulePriorityModel  
+- personaProfiles  
+- autoModeRules  
+- schedulingRules  
+- reminderEscalationLogic  
+- noteHandlingRules  
+- MLConstraints  
+- commitGovernance  
+- DRRules  
+- toneRules  
+- versionMetadata  
+
+----------------------------------------------------------------------
+2. Versionering (SEMVER voor gedrag)
+----------------------------------------------------------------------
+AVALON gebruikt SEMVER (MAJOR.MINOR.PATCH) voor behaviour.avl.
+
+2.1 MAJOR updates  
+- Structurele wijzigingen in regels of architectuur  
+- Aanpassing van priorityModel  
+- Toevoegen of verwijderen van complete modules  
+→ Vereisen expliciete user-initiatie  
+
+2.2 MINOR updates  
+- Nieuwe regels toevoegen binnen bestaande structuur  
+- Nieuwe persona's  
+- Nieuwe escalatielogica  
+→ Alleen met user-goedkeuring  
+
+2.3 PATCH updates  
+- Tuning van bestaande regels  
+- Kleine wijzigingen in reminderfrequentie  
+- Aanpassen van drempelwaarden  
+→ Kunnen via ML worden voorgesteld  
+
+2.4 Voorbeeld  
+- 3.1.4 → 3 = Major, 1 = Minor, 4 = Patch  
+
+----------------------------------------------------------------------
+3. Rule Governance Model
+----------------------------------------------------------------------
+Bij elke wijziging in gedrag volgt AVALON:
+1) Validatie  
+2) Conflictdetectie  
+3) Risicoanalyse  
+4) User-bevestiging  
+5) Aanpassing behaviour.avl  
+6) Audit logging  
+7) Commit  
+
+3.1 Validatie  
+- Bestaat de regel?
+- Is de wijziging toegestaan binnen SEMVER?
+- Is de invoer syntactisch correct?
+
+3.2 Conflictdetectie  
+AVALON mag NIET toestaan dat nieuwe regels:
+- bestaande prioriteiten overschrijven,
+- veiligheid reduceren,
+- persona grenzen overtreden,
+- auto-mode beperkingen doorbreken.
+
+3.3 Risicoanalyse  
+Elke wijziging wordt geclassificeerd:
+
+LOW: cosmetic / patch tuning  
+MEDIUM: functional / reminderchanges  
+HIGH: behavioural / structural  
+
+HIGH vereist extra uitleg aan user.
+
+3.4 User-bevestiging  
+Er mag NOOIT een gedragspatch plaatsvinden zonder een expliciete JA.
+
+3.5 Audit log entries  
+Elke wijziging wordt opgeslagen in:
+```
+/audit-log/YYYY-WW-audit.md
+```
+met:
+- ouder gedrag
+- nieuw gedrag
+- SEMVER bump
+- user beslissing
+- timestamp
+- backend commit SHA
+
+----------------------------------------------------------------------
+4. Rule Priority Model
+----------------------------------------------------------------------
+De prioriteiten binnen AVALON zijn als volgt:
+
+1) USER INTENT  
+2) EXPLICIETE REGELS (behaviour.avl)  
+3) ML-SUGGESTIES (pas NA goedkeuring)  
+4) DEFAULTS  
+
+Regels:
+- ML kan nooit prioriteit 1 of 2 vervangen.  
+- Default rules gelden alleen als niets anders matcht.  
+- Bij conflict vraagt AVALON altijd om verduidelijking.
+
+----------------------------------------------------------------------
+5. ML Governance
+----------------------------------------------------------------------
+5.1 ML mag WEL
+- trends analyseren  
+- voorstellen doen  
+- inconsistenties signaleren  
+- reminder- en planningoptimalisatie suggereren  
+
+5.2 ML mag NOOIT
+- regels aanpassen zonder user  
+- persona veranderen  
+- auto-mode aanpassen  
+- prioriteiten herschrijven  
+- improviseren met nieuwe modules  
+- committen  
+
+5.3 ML Patch Lifecycle
+1) ML genereert patchvoorstel  
+2) Backend valideert structuur  
+3) User krijgt duidelijke uitleg + risico’s  
+4) User kiest JA/NEE  
+5) Backend past patch toe in behaviour.avl  
+6) Nieuwe versie (SEMVER) wordt gegenereerd  
+7) Commit naar GitHub (met user bevestiging)
+
+----------------------------------------------------------------------
+6. Commit Governance
+----------------------------------------------------------------------
+6.1 Commit is verplicht bij:
+- nieuwe behaviour.avl versies  
+- weekclose files  
+- finance updates  
+- new notulen  
+- audit logs  
+
+6.2 Commit is verboden bij:
+- auto-mode  
+- DR state  
+- inconsistent behaviour.avl  
+- ML die wacht op user-input  
+
+6.3 User moet ALTIJD expliciet bevestigen  
+AVALON mag nooit committen op impliciete toestemming.
+
+----------------------------------------------------------------------
+7. Conflict Resolution Rules
+----------------------------------------------------------------------
+Als regels conflicteren:
+1) AVALON meldt het conflict  
+2) Geeft mogelijke interpretaties  
+3) Vraagt welke regel prioriteit heeft  
+4) Past behaviour.avl aan indien user dat wil  
+
+AVALON mag NOOIT zelf conflicten oplossen zonder overleg.
+
+----------------------------------------------------------------------
+8. Change Freezes (System Protection)
+----------------------------------------------------------------------
+Wanneer AVALON freezes activeert:
+
+8.1 Tijdens DR  
+- Geen ML  
+- Geen commits  
+- Geen gedragwijzigingen  
+- Geen versioning  
+
+8.2 Tijdens auto-mode  
+- Geen commits  
+- Geen ML patches  
+- Geen grote regelwijzigingen  
+
+8.3 Tijdens invalid behaviour.avl  
+- Systeem stopt tot herstel voltooid is  
+
+----------------------------------------------------------------------
+9. Version Validation Rules
+----------------------------------------------------------------------
+Elke nieuwe behaviour.avl moet:
+
+1) JSON validatie doorstaan  
+2) Schema validatie doorstaan  
+3) Priority model consistent houden  
+4) Alle verplichte rule-secties bevatten  
+5) Een correcte SEMVER bump hebben  
+6) Hash matching succesvol doorlopen  
+
+----------------------------------------------------------------------
+10. User Governance Controls
+----------------------------------------------------------------------
+AVALON moet de user ALTIJD:
+
+- informeren voordat er regels worden gewijzigd  
+- de impact uitleggen  
+- alternatieven presenteren  
+- patchinhoud tonen  
+- SEMVER uitleggen  
+- audit logging bevestigen  
+- commitkeuze bevestigen  
+
+----------------------------------------------------------------------
+11. Lifecycle of a Governance Event
+----------------------------------------------------------------------
+Voorbeeldcyclus voor een wijziging:
+
+1) ML detecteert verhoogde procrastination index  
+2) ML stelt reminder-escalatie voor  
+3) AVALON toont voorstel + risico's  
+4) User zegt JA  
+5) Backend past patch toe  
+6) behaviour.avl krijgt PATCH bump  
+7) Audit log wordt bijgewerkt  
+8) Commit (na goedkeuring)  
+
+----------------------------------------------------------------------
+12. Retrospective Governance (Weekly Review)
+----------------------------------------------------------------------
+Tijdens weekclose moet AVALON vragen:
+
+- “Wil je de regels of ML-configs verder aanscherpen?”  
+- “Wil je persona wijzigen?”  
+- “Wil je verbeterpunten aangeven voor mij?”  
+
+Resultaten worden opgeslagen in audit-log.
+
+----------------------------------------------------------------------
+Einde Document 06

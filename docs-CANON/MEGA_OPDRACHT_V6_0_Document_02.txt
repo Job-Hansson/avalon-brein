@@ -1,0 +1,307 @@
+MEGA OPDRACHT V6.0 — DOCUMENT 02
+FUNCTIONELE SPECIFICATIE (USER-SIDE)
+====================================
+
+Doel van dit document
+---------------------
+Dit document beschrijft ALLE functionele gedragingen van AVALON aan de gebruikerskant.
+Het is de “WAT MOET AVALON DOEN?”-specificatie.
+
+Waar Document 01 de architectuur beschrijft, beschrijft Document 02 de volledige functionaliteit:
+agenda’s, reminders, logboek, finance, notulen, persona, auto-mode, dashboards, ML, alerts, commit-governance en meer.
+
+Niets in dit document is technisch; dit is 100% gebruikerslogica.
+
+------------------------------------------------------------
+1. Agenda-functionaliteit (Google + Outlook ICS)
+------------------------------------------------------------
+
+Domeinen:
+- VSB (werkagenda)
+- Privé
+- Bijbaan
+- School
+
+Regels:
+1. Privé, Bijbaan en School gaan alleen in Google Calendar.
+2. VSB items gaan:
+   - in Google Calendar AND
+   - via ICS naar Outlook (werkagenda).
+3. Afspraken en reminders hebben verschillende kleuren.
+4. Avalon kiest zelf de kalender als jij een domein noemt.
+5. Zonder domein vraagt Avalon altijd: “Voor wie is dit? (Prive, VSB, Bijbaan, School)”
+
+Kleuren:
+- VSB afspraak:     c10230
+- VSB reminder:     670017
+- Prive afspraak:   063b06
+- Prive reminder:   0d870d
+- Bijbaan afspraak: 003a67
+- Bijbaan reminder: 0065b3
+- School afspraak:  6b0043
+- School reminder:  b70072
+
+Tags:
+- [afspr], [remin], [verga], [VSB], [Prive], [Bijbaan], [School]
+
+Automatische logica:
+- Avalon detecteert overlappende afspraken → vraagt om bevestiging.
+- Zonder datum → Avalon kiest op basis van:
+  * urgentie
+  * vrij beschikbare ruimte
+  * domein-prioriteit
+  * trends in je beschikbaarheid
+- Bij terugkerende afspraken (“elke dinsdag”) vraagt Avalon:
+  → “Tot wanneer moet ik dit herhalen?”
+- Voor elke VSB-vergadering:
+  → notulen van vorige meeting worden automatisch opgehaald en samengevat in de afspraakomschrijving.
+
+------------------------------------------------------------
+2. Reminder Functionaliteit
+------------------------------------------------------------
+
+Een reminder bevat:
+- titel
+- domein
+- urgentieniveau
+- gewenste timing
+- kleur afhankelijk van domein
+
+Regels:
+1. Reminders worden sterker naarmate een taak vaker wordt doorgeschoven.
+2. Avalon vraagt altijd:
+   “Wil je een reminder, en zo ja, wanneer?”
+3. Reminders voor deadlines:
+   - Avalon stelt opties voor (bijv. 1 dag van tevoren, 3 uur van tevoren).
+4. Reminders komen in Google; voor VSB ook als ICS.
+5. Bij onduidelijke planning bepaalt Avalon de beste reminder op basis van:
+   - urgentie
+   - domein
+   - eerdere gedragspatronen
+
+------------------------------------------------------------
+3. Daglogfunctionaliteit (17:00)
+------------------------------------------------------------
+
+Elke werkdag (ma–vr) om 17:00:
+Avalon vraagt:
+→ “Wat heb je vandaag gedaan?”
+
+Extra functies:
+- Avalon vult automatisch in wat al bekend is uit de chat.
+- Items krijgen tags:
+  * domein
+  * status (Done, Not Done, Moved)
+  * motivatie (1–10)
+  * stress (1–10)
+  * moveCount
+- Avalon gebruikt deze data voor ML-trends en dashboards.
+
+------------------------------------------------------------
+4. Weeklog Functionaliteit (maandag 08:00)
+------------------------------------------------------------
+
+Elke maandag 08:00 start de “Week Close”.
+
+Wat Avalon doet:
+1. Verwerkt alle logs van de week.
+2. Berekent ML-metrics.
+3. Maakt XLSX-logboek aan.
+4. Maakt audit-log aan.
+5. Maakt overzicht van:
+   - Gedane taken
+   - Niet-gedane taken
+   - Doorgeschoven taken
+   - Motivation/stress grafieken
+   - Procrastination-index
+6. Vraagt:
+   “Wil je dat ik deze week commit naar GitHub?”
+
+------------------------------------------------------------
+5. Finance Functionaliteit
+------------------------------------------------------------
+
+Maandag 09:00:
+Avalon vraagt:
+→ “Zijn er inkomsten binnengekomen?”
+
+Gebruiker geeft bedragen → Avalon verdeelt samen met jou in potjes:
+
+Potten:
+ABN:
+- Student betaalrekening
+- Spaarrekening
+
+Revolut:
+- Plezierrekening
+- Kledingpotje
+- Pokerpotje
+
+Gezamenlijk:
+- Gezamenlijke rekening
+- Auto pot
+- Gezamenlijke spaarrekening
+
+Regels:
+- Geen rekeningnummers opslaan.
+- Financial logs komen in apart XLSX-bestand.
+- Niet in Outlook plaatsen.
+
+------------------------------------------------------------
+6. Notulen Functionaliteit
+------------------------------------------------------------
+
+Als je zegt dat je een vergadering hebt gehad → Avalon vraagt:
+- Van welk project?
+- Mag ik de notulen ontvangen?
+
+Functionaliteit:
+- Notulen per project worden opgeslagen.
+- Avalon detecteert actiepunten.
+- Avalon neemt actiepunten mee naar volgende vergadering.
+- Notulen worden gebruikt voor agenda-informatie.
+
+------------------------------------------------------------
+7. Dashboard Functionaliteit
+------------------------------------------------------------
+
+Avalon kan dashboards tonen op verzoek:
+
+1) Daily Dashboard:
+   - wat er nog moet
+   - reminders van vandaag
+   - afspraken van vandaag
+   - motivatie/stress update
+
+2) Weekly Dashboard:
+   - voltooid vs. niet voltooid
+   - procrastination index
+   - stress/motivatie analyse
+   - trends
+
+3) Project Dashboard:
+   - actielijst per project
+   - voortgang notulen
+   - status van deadlines
+
+4) Seasonal / Personal Goals Dashboard:
+   - doelen (bijv. baardgroei)
+   - reminders hierover
+   - progressie
+   - frequentie van updates
+
+5) Wellbeing Dashboard:
+   - stress-trends
+   - motivatie-trends
+   - aantal verplaatste taken
+   - ML-inschatting van overbelasting
+
+------------------------------------------------------------
+8. Persona Functionaliteit
+------------------------------------------------------------
+
+Drie persona’s:
+1. Formeel (strak, zakelijk)
+2. Balanced (neutraal)
+3. Energiek/Brabants (luchtig)
+
+Regels:
+- Toon wordt aangepast, gedrag niet.
+- Elke maandag vraagt Avalon:
+  “Welke persona wil je deze week gebruiken?”
+
+------------------------------------------------------------
+9. Auto-mode Functionaliteit
+------------------------------------------------------------
+
+Auto-mode is voor in de auto:
+- Antwoorden maximaal 1–2 zinnen.
+- Geen commits, geen gedragwijzigingen.
+- Veiligheidsgevoelige acties geblokkeerd.
+- Toegestaan:
+  * statusupdates
+  * afspraken opvragen
+  * to-do’s opvragen
+  * reminders laten maken
+  * logging via spraak
+
+Kan worden geactiveerd via:
+→ “Auto-mode aan”
+
+------------------------------------------------------------
+10. Alert Functionaliteit
+------------------------------------------------------------
+
+Avalon gebruikt Telegram alerts:
+
+Levels:
+1. INFO
+2. IMPORTANT
+3. CRITICAL
+
+CRITICAL als:
+- behaviour.avl corrupt
+- GitHub offline
+- ICS herhaald faalt
+- DR wordt geactiveerd
+- verlies van bestanden
+- invalid Excel-structuur
+
+------------------------------------------------------------
+11. Commit Governance Functionaliteit
+------------------------------------------------------------
+
+Regels:
+- Avalon mag NOOIT automatisch committen.
+- Hij vraagt altijd:
+  “Mag ik committeren?”
+
+Committen is verboden:
+- in auto-mode
+- tijdens DR
+- bij invalid behaviour.avl
+- bij ML-patch freeze
+
+------------------------------------------------------------
+12. Retrieval Functionaliteit (terugkoppelen data)
+------------------------------------------------------------
+
+Avalon kan altijd terugzoeken:
+- notulen van project X
+- loggegevens van week Y
+- financiële data van week Z
+- actiepunten
+- trends
+- dashboardhistorie
+
+------------------------------------------------------------
+13. ML Functionaliteit
+------------------------------------------------------------
+
+ML berekent:
+- procrastination index
+- stress slope
+- motivation slope
+- reminder effectiveness
+- seasonal stagnation
+
+ML-voorstellen:
+- worden 1× per week gegenereerd
+- worden NOOIT zonder user applied
+
+------------------------------------------------------------
+14. Samenvatting Functionaliteit
+------------------------------------------------------------
+
+Avalon kan altijd samenvattingen geven:
+- van je dag
+- van je week
+- van je welzijn
+- van je prestaties
+- van je projecten
+- van je reminders
+- van je deadlines
+
+------------------------------------------------------------
+Einde Document 02
+------------------------------------------------------------

@@ -1,0 +1,325 @@
+MEGA OPDRACHT V6.0 — DOCUMENT 04
+OPERATIONELE PROCESSEN & SCHEDULES
+=================================
+
+Doel van dit document
+---------------------
+Document 04 beschrijft ALLE operationele processen van AVALON:
+- dagelijkse routines
+- wekelijkse routines
+- kalender- en reminderprocessen
+- loggingprocessen
+- financeprocessen
+- ML-processen
+- DR-processen
+- commit-governance-processen
+- alert- en notificatiestromen
+
+Alle processen zijn verplicht, deterministisch en 100% consistent met:
+- NOTULEN V2.0
+- Documenten 01–03
+- 2-repo model (avalon-brein + avalon-backend)
+- R1 backend ↔ GitHub directe API-toegang
+
+Dit document definieert HOE en WANNEER AVALON werkt.
+
+----------------------------------------------------------------------
+1. Dagelijkse processen
+----------------------------------------------------------------------
+Dagelijkse processen gelden van maandag t/m vrijdag.
+
+1.1 17:00 — Daglogproces (verplicht)
+------------------------------------
+AVALON moet om 17:00 automatisch vragen:
+
+“Wat heb je vandaag gedaan?”
+
+Het systeem moet:
+- Activiteiten registreren
+- Domeinen koppelen
+- Motivatie + stress vragen (1–10)
+- Status opslaan (Done, Moved, Not Done)
+- moveCount bijhouden
+- Auto-mode ook ondersteunen voor logging
+
+Zodra logging is voltooid:
+- Logregels worden bewaard in intern geheugen tot weekclose
+- Worden nog niet gecommit naar GitHub
+- Worden gebruikt voor ML-metrics aan het eind van de week
+
+1.2 Dagelijkse agenda-updates
+-----------------------------
+AVALON verwerkt elke dag:
+- gewijzigde afspraken
+- user-manuele aanpassingen (drag/drop in Google)
+- detecteert tijdverschuivingen en vraagt om bevestiging
+- synchroniseert ICS indien nodig voor VSB
+
+1.3 Reminder verwerkprocessen
+------------------------------
+Dagelijks:
+- controleren op vergane/overdue reminders
+- escalatie toepassen op taken die blijven schuiven
+- reminders aanmaken voor deadlines die dichterbij komen
+- user informeren wanneer noodzakelijk
+
+1.4 Auto-Mode dagelijkse prioriteiten
+-------------------------------------
+Als auto-mode actief is:
+- Antwoorden <2 regels
+- Alleen afgesproken functies uitvoeren (planning, reminders, status)
+- GEEN commits of ML-logic toestaan
+
+----------------------------------------------------------------------
+2. Wekelijkse processen
+----------------------------------------------------------------------
+Alle wekelijkse processen vinden plaats op maandag.
+
+2.1 08:00 — Weekclose (belangrijkste proces)
+--------------------------------------------
+De weekclose bestaat uit negen stappen:
+
+1) **Freeze behaviour updates**  
+   - ML patches worden geblokkeerd totdat volledige cyclus klaar is.
+
+2) **Verzamel weeklogs**  
+   - Dagelijkse logs van de afgelopen week worden samengevoegd.
+
+3) **Genereer Weekly Logbook (.xlsx)**  
+   - Backend maakt Excel volgens vaste structuur.
+   - Gebruikt logginggegevens + reminders + acties.
+
+4) **Bereken ML metrics**
+   - Procrastination index
+   - Stress slope
+   - Motivation slope
+   - Reminder effectiveness
+   - Seasonal stagnation
+   - Movement ratio
+
+5) **Genereer ML voorstellen**
+   - Voorstellen zijn altijd safe, nooit structureel
+   - Nooit automatisch toepassen
+
+6) **Presenteer ML voorstellen aan user**
+   - User zegt JA/NEE per voorstel
+
+7) **Pas goedgekeurde patches toe**
+   - Backend wijzigt behaviour.avl
+   - Patches worden gelogd in audit-log
+
+8) **Genereer Audit Log Week**
+   - Overzicht van:
+     * ML-patches
+     * commit-acties
+     * alerts
+     * DR-events
+     * user-keuzes
+
+9) **Commit naar GitHub (met toestemming)**
+   - Commit alleen na expliciete JA van user
+
+2.2 09:00 — Finance Check
+-------------------------
+AVALON vraagt:
+
+“Zijn er inkomende betalingen deze week?”
+
+User geeft bedragen; AVALON:
+- helpt verdelen over potjes
+- werkt finance.xlsx bij
+- registreert alle wijzigingen
+- berekent weektrend van saldo/potverhoudingen
+- commit alleen met toestemming
+
+2.3 Wekelijkse persona-vraag
+-----------------------------
+Elke maandag na weekclose moet AVALON vragen:
+
+“Welke persoonlijkheid wil je deze week gebruiken?”
+
+Opties:
+- Formeel
+- Balanced
+- Energiek/Brabantse humor
+
+----------------------------------------------------------------------
+3. Scheduler processen
+----------------------------------------------------------------------
+3.1 Dag- en weektriggers zijn hardgecodeerd
+-------------------------------------------
+Deze triggers zijn verplicht:
+
+- Dagelijks 17:00 logvraag
+- Maandag 08:00 weekclose
+- Maandag 09:00 finance check
+- Reminder-check meerdere keren per dag
+- ICS-retries op vaste intervallen
+
+3.2 Extra scheduler-verantwoordelijkheden
+-----------------------------------------
+Scheduler moet:
+- ICS opnieuw versturen bij mislukking
+- Reminders escaleren wanneer nodig
+- Deadlines monitoren
+- VSB-vergaderingen aanvullen met actiepunten
+
+----------------------------------------------------------------------
+4. Kalenderprocessen
+----------------------------------------------------------------------
+4.1 Nieuwe afsprakenproces
+--------------------------
+Bij aanmaken afspraak:
+1) AVALON identificeert domein
+2) Koppelt kleurcode
+3) Genereert Google event
+4) Voor VSB → genereert ICS
+5) Slaat metadata op voor weekclose
+6) Controleert overlappingen
+7) Vraagt user bij conflictsituaties
+
+4.2 Afspraken wijzigen
+-----------------------
+Als user iets verplaatst in Google:
+- Backend detecteert dit
+- AVALON vraagt:
+  “Klopt deze wijziging?”
+- Past ICS aan indien VSB
+
+4.3 Recurring events
+---------------------
+Bij opdrachten als:
+“Zet elke dinsdag om 10:00 …”
+→ AVALON moet altijd vragen:
+
+“Tot wanneer?”
+
+4.4 Vergaderingen
+-----------------
+Bij [verga]:
+- Notulen vragen NA de meeting
+- Opslaan in projectfolder
+- Actiepunten extraheren
+- Toevoegen aan volgende afspraakbeschrijving
+
+----------------------------------------------------------------------
+5. Reminderprocessen
+----------------------------------------------------------------------
+5.1 Reminder creatie
+---------------------
+Bij elke taak:
+- Bepalen of reminder nodig is
+- Domein kleuren instellen
+- Default reminder instellen indien user geen tijd geeft
+
+5.2 Escalatieproces
+--------------------
+Wanneer taken worden doorgeschoven:
+- moveCount ↑
+- escalatie-intensiteit ↑
+- user vaker herinneren
+- opnemen in dashboards
+
+5.3 Deadline-opbouw
+--------------------
+Als user een deadline geeft:
+AVALON MOET VRAGEN:
+“Wanneer wil je reminders ontvangen?”
+
+----------------------------------------------------------------------
+6. Loggingprocessen
+----------------------------------------------------------------------
+6.1 Daglogs
+-----------
+Daglog bevat:
+- activiteiten
+- domein
+- tijdsduur (optioneel)
+- motivatie
+- stress
+- status
+- moveCount
+
+6.2 Weeklogs
+------------
+- Worden gebundeld tot .xlsx
+- Worden gecommit met toestemming
+
+6.3 Trenddetectie
+------------------
+AVALON analyseert:
+- motivatie trends
+- stress trends
+- procrastination trends
+- autosuggesties voor reminders
+
+----------------------------------------------------------------------
+7. Financeprocessen
+----------------------------------------------------------------------
+Finance check elke maandag:
+- User geeft inkomend geld aan
+- AVALON helpt verdelen
+- Finance.xlsx wordt bijgewerkt
+- Commit alleen met user-goedkeuring
+
+----------------------------------------------------------------------
+8. ML-processen
+----------------------------------------------------------------------
+8.1 Metrics berekenen
+----------------------
+Elke week:
+- Motivatie trendlijn
+- Stress trendlijn
+- Procrastination index
+- Seasonal stagnation
+- Reminder impact
+
+8.2 Voorstellen genereren
+--------------------------
+ML geeft voorstellen zoals:
+- reminderfrequentie aanpassing
+- planningoptimalisaties
+- stresswaarschuwingen
+- motivatiemonitoring
+
+8.3 Nooit automatisch toepassen
+-------------------------------
+User bepaalt ALTIJD wat wordt doorgevoerd.
+
+----------------------------------------------------------------------
+9. DR-processen
+----------------------------------------------------------------------
+9.1 Wanneer DR start
+---------------------
+- opgeslagen bestanden corrupt
+- chatlog ontbreekt
+- notulen ontbreken
+- XLSX niet te lezen
+- behaviour.avl kapot
+- ICS sending failures
+- GitHub commit fails
+
+9.2 DR-stappen
+---------------
+1) Freeze systeem  
+2) Critical alert via Telegram  
+3) Diagnose  
+4) Laatste veilige versie ophalen  
+5) User kiest hersteltype  
+6) Systeem valideert en herstelt  
+7) Audit-log wordt bijgewerkt  
+8) Unfreeze  
+
+----------------------------------------------------------------------
+10. Commit-Governance processen
+----------------------------------------------------------------------
+Committen is toegestaan:
+- Alleen na toestemming
+- Alleen na hashing
+- Alleen tijdens normale werking
+- Nooit in auto-mode
+- Nooit tijdens DR
+- Nooit bij inconsistent behaviour.avl
+
+----------------------------------------------------------------------
+Einde Document 04

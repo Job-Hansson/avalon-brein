@@ -1,0 +1,301 @@
+BACKEND SPEC V3.0 — DOCUMENT 06
+VERSIONING & GOVERNANCE (BACKEND-SIDE ENFORCEMENT)
+==================================================
+
+Doel van dit document
+---------------------
+Document 06 beschrijft hoe de **backend** alle versiebeheer-, governance-,
+patch-validatie- en update-regels afdwingt die door behaviour.avl,
+MEGA OPDRACHT V6.0 en eerdere Backend Spec documenten zijn gedefinieerd.
+
+Dit document legt exact vast:
+- hoe SEMVER wordt toegepast,
+- hoe governance wordt gehandhaafd,
+- hoe patch-validatie werkt,
+- hoe de backend commits beoordeelt,
+- hoe conflicten worden gedetecteerd en opgelost,
+- hoe governance samenwerkt met DR en ML.
+
+----------------------------------------------------------------------
+1. Overzicht van Backend Governance
+----------------------------------------------------------------------
+Backend-governance bestaat uit vier primaire pilaren:
+
+1) **Versioning Enforcement**  
+   - backend is de enige entiteit die behaviour.avl SEMVER bumps mag uitvoeren.
+
+2) **Patch Validation Enforcement**  
+   - backend controleert alle patchvoorstellen (ML of user) tegen strikte regels.
+
+3) **Commit Governance Enforcement**  
+   - backend beslist of commits zijn toegestaan op basis van context, state en veiligheid.
+
+4) **Conflict Resolution Enforcement**  
+   - backend detecteert inconsistenties en dwingt duidelijkheid af voordat regels worden gewijzigd.
+
+Backend-governance is HARD:  
+Als een regel wordt geschonden → patch afgewezen → error → eventueel DR.
+
+----------------------------------------------------------------------
+2. Versioning (Backend Authority)
+----------------------------------------------------------------------
+2.1 SEMVER Structuur
+De backend hanteert SEMVER:
+
+MAJOR.MINOR.PATCH
+
+- MAJOR — structurele wijzigingen  
+- MINOR — toevoeging van nieuwe regels  
+- PATCH — kleine opties / drempels / tuning  
+
+Alleen backend bepaalt hoe SEMVER verandert.
+
+2.2 Backend SEMVER Rules
+- ML mag **uitsluitend** PATCH-veranderingen voorstellen.  
+- User kan PATCH, MINOR of MAJOR voorstellen.  
+- DR kan MAJOR bumps forceren wanneer structuur is hersteld.  
+- Auto-mode: **SEMVER updates zijn verboden**.  
+- Tijdens DR: **SEMVER updates zijn gepauzeerd**.
+
+2.3 Version Metadata
+Backend voegt automatisch aan behaviour.avl toe:
+- oldVersion  
+- newVersion  
+- timestamp  
+- appliedBy (“backend”)  
+- approvedByUser (true/false)  
+- patchType (PATCH/MINOR/MAJOR)
+
+2.4 Version Integrity Check
+Voordat backend een nieuwe versie schrijft:
+- validatie van JSON  
+- validatie van schema  
+- hashBefore = sha256(oldFile)  
+- hashAfter = sha256(newFile)  
+- mismatch? → DR trigger  
+
+----------------------------------------------------------------------
+3. Patch Governance
+----------------------------------------------------------------------
+Backend werkt met een strikt patchmodel.
+
+3.1 Patchobject
+{
+  "id": "ML-SUG-2025-0001",
+  "type": "PATCH",
+  "path": "reminderEscalationRules.threshold",
+  "before": 2,
+  "after": 1,
+  "rationale": "...",
+  "riskLevel": "LOW",
+  "source": "ML"
+}
+
+3.2 Patch Validatieregels
+Backend verwerpt elke patch die:
+
+1) een verboden path wijzigt:
+   - rulePriorityModel  
+   - personaProfiles  
+   - drRules  
+   - commitRules  
+   - autoModeRules  
+
+2) een structuurwijziging voorstelt die niet overeenkomt met patch-type
+
+3) inconsistent is met beforeValue
+
+4) prioriteiten verandert
+
+5) gedrag verwijdert of overschrijft zonder expliciete user-intent
+
+6) afkomstig is van ML maar PATCH-limit overschrijdt
+
+3.3 Patch Sequencing
+Backend eist dat:
+- patches sequentieel worden verwerkt (FIFO),
+- elke patch volledig gecommit moet worden voordat de volgende begint.
+
+Bij mislukte patch → chain stopt.
+
+----------------------------------------------------------------------
+4. Governance Control Flow
+----------------------------------------------------------------------
+Flow bij wijzigen van regels:
+
+1) ChatGPT verzamelt user-keuze of ML-voorstel  
+2) Backend ontvangt JSON patch  
+3) backend.validate_patch()  
+4) backend.check_state_validity()  
+   - auto-mode? → BLOCK  
+   - DR actief? → BLOCK  
+   - behaviour inconsistent? → BLOCK  
+5) backend.apply_patch_in_memory()  
+6) backend.bump_semver()  
+7) backend.update_hash()  
+8) Audit entry maken  
+9) backend.commit() (met toestemming)
+
+----------------------------------------------------------------------
+5. Commit Governance Enforcement
+----------------------------------------------------------------------
+Committen is ALLEEN toegestaan indien:
+
+1) User heeft expliciet JA gezegd  
+2) Commit vindt NIET plaats in:
+   - auto-mode  
+   - DR state  
+   - behaviour inconsistency  
+   - invalid patch proposal  
+
+3) Validatiechecks slagen:
+   - JSON validatie  
+   - SEMVER validatie  
+   - Hash validatie  
+   - File integrity checks  
+   - No forbidden modifications  
+
+4) AuditEngine heeft audit entry geschreven  
+
+Commit forbidden:
+- ML autopatching  
+- ML zonder user approval  
+- behaviour patches in auto-mode  
+- changes zonder audit-log  
+- ICS failures pending  
+
+----------------------------------------------------------------------
+6. Governance & DR Integratie
+----------------------------------------------------------------------
+Backend moet governance koppelen aan DR:
+
+6.1 DR staat ALTIJD boven governance  
+Als DR actief is:
+- geen patches  
+- geen commits  
+- geen SEMVER  
+- geen governance-wijzigingen  
+
+6.2 DR triggers governance checks:
+- behaviour corrupt → governance geëscaleerd  
+- finance corrupt → governance blokkeert writes  
+- missing logs → governance blokkeert weekclose  
+
+6.3 Na DR herstel:
+- backend voert volledige validatie uit  
+- SEMVER bump is verplicht (structuurwijziging)  
+- audit-log moet de DR-beslissingen bevatten  
+
+----------------------------------------------------------------------
+7. Governance & ML Integratie
+----------------------------------------------------------------------
+7.1 Backend bewaakt ML boundaries  
+Backend dwingt af dat ML:
+
+- geen structurele wijzigingen kan voorstellen  
+- geen persona mag wijzigen  
+- geen prioriteiten mag aanpassen  
+- geen forbidden paths mag aanraken  
+
+7.2 Backend valideert ML output  
+Voor elke ML-suggestie:
+- type = PATCH verplicht  
+- patch mag niet groter zijn dan MLConstraints toestaan  
+- riskLevel mag ML niet zelf bepalen → backend recalculates risks  
+
+----------------------------------------------------------------------
+8. Governance bij Conflicten
+----------------------------------------------------------------------
+Als twee regels of patches conflicteren:
+
+1) Backend stopt automatisme  
+2) Backend genereert een “CONFLICT_RESOLUTION_REQUEST”  
+3) ChatGPT vraagt user: welke regel heeft prioriteit?  
+4) Backend verwerkt keuze  
+5) Backend past patch toe (indien nodig)  
+6) Audit entry wordt geschreven  
+
+Geen user-invulling = geen wijziging.
+
+----------------------------------------------------------------------
+9. State Governance
+----------------------------------------------------------------------
+Backend bewaakt vier states:
+
+STATE_NORMAL  
+- alles toegestaan behalve verboden acties
+
+STATE_AUTO_MODE  
+- commits en patches geblokkeerd
+
+STATE_DR  
+- bijna alles geblokkeerd behalve herstelprocessen
+
+STATE_INCONSISTENT  
+- triggered wanneer behaviour.avl invalid is  
+- backend weigert acties tot herstel
+
+Backend moet state persistent bijhouden tijdens runtime.
+
+----------------------------------------------------------------------
+10. Weekly Governance Cycle
+----------------------------------------------------------------------
+Tijdens weekclose:
+
+Backend moet:
+- validate_behaviour()  
+- validate_logbook()  
+- validate_finance()  
+- validate_notulen()  
+- validate_chatlogs()  
+- validate_audit()  
+
+Bij mismatch → DR starten.
+
+Backend moet governance-updates uitvoeren:
+- ML-voorstellen verwerken  
+- user feedback verwerken  
+- persona keuze doorgeven  
+- audit entry genereren  
+
+----------------------------------------------------------------------
+11. Governance Logging
+----------------------------------------------------------------------
+Elke governancewijziging moet worden gelogd met:
+
+- patchId  
+- oldVersion  
+- newVersion  
+- type  
+- rationale  
+- riskLevel  
+- approvedBy  
+- timestamp  
+- hashBefore  
+- hashAfter  
+- commitSHA  
+
+----------------------------------------------------------------------
+12. Backend Error Model voor Governance
+----------------------------------------------------------------------
+Backend errors:
+
+GOVERNANCE_FORBIDDEN  
+- poging tot patch in auto-mode  
+- patch zonder user approval  
+
+UNSAFE_PATCH  
+- ML probeert structurele wijziging  
+
+INVALID_PATCH  
+- inconsistent beforeValue  
+- type mismatch  
+
+CONFLICT_RULES  
+- twee regels spreken elkaar tegen  
+
+VERSIONING_ERROR  
+- SEMVER bump incorrect  
+
+----------------------------------------------------------------------
+Einde Document 06

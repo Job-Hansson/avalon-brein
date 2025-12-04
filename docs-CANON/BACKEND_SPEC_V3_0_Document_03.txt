@@ -1,0 +1,259 @@
+
+BACKEND SPEC V3.0 — DOCUMENT 03  
+BEHAVIOUR & ML ENGINE INTERNAL SPECIFICATION  
+===========================================
+
+Doel van dit document  
+---------------------  
+Document 03 definieert de volledige interne werking van:
+
+- BehaviourEngine  
+- MLBehaviourEngine  
+- Rule validation layer  
+- Patch lifecycle  
+- SEMVER bump logic  
+- Behaviour safety boundaries  
+- ML constraints en interne data-flow  
+- Governance-enforcement op backend-niveau  
+
+Dit is het meest kritieke document voor de stabiliteit van het gehele AVALON-systeem.  
+Het bepaalt HOE gedrag wordt geïnterpreteerd, toegepast, gevalideerd en beschermd.  
+
+----------------------------------------------------------------------  
+1. Overzicht van Behaviour Subsystem  
+----------------------------------------------------------------------  
+Het Behaviour subsysteem bestaat uit vier interne componenten:
+
+1) **BehaviourLoader**  
+2) **BehaviourValidator**  
+3) **BehaviourPatcher**  
+4) **BehaviourVersionManager**  
+
+Samen verzorgen zij:
+
+- Het laden van behaviour.avl  
+- Validatie en schema-checks  
+- Prioriteitscontrole  
+- Conflictdetectie  
+- SEMVER beheer  
+- Patchverwerking  
+- Hash-integriteitcontrole  
+
+BehaviourEngine is strikt **deterministisch**.  
+Geen enkele regel mag dynamisch worden aangepast zonder user-toestemming.
+
+----------------------------------------------------------------------  
+2. behaviour.avl Bestandsstructuur (Canonical Schema)  
+----------------------------------------------------------------------  
+Het behaviour.avl bestand MOET minimaal deze secties bevatten:
+
+{
+  "version": "MAJOR.MINOR.PATCH",
+  "priorityModel": {...},
+  "personaProfiles": {...},
+  "autoModeRules": {...},
+  "schedulingRules": {...},
+  "reminderEscalation": {...},
+  "noteHandlingRules": {...},
+  "mlConstraints": {...},
+  "commitGovernance": {...},
+  "drRules": {...},
+  "toneRules": {...}
+}
+
+Alle secties zijn verplicht.  
+Ontbrekende sectie = AUTOMATISCHE DR.
+
+----------------------------------------------------------------------  
+3. BehaviourLoader — Internal Logic  
+----------------------------------------------------------------------  
+3.1 Stappen bij het laden van behaviour.avl:
+
+1) Fetch via GitHubService  
+2) SHA256-hash opslaan  
+3) JSON parsing  
+4) Schema validatie  
+5) Verplichte keys controleren  
+6) Default-fallbacks genereren (alleen als gedefinieerd in governance)  
+
+3.2 Fouten die DR triggeren:
+- invalid JSON  
+- syntactische fouten  
+- ontbrekende secties  
+- mismatch tussen priorityModel en personaRules  
+- corrupt hash  
+
+----------------------------------------------------------------------  
+4. BehaviourValidator — Internal Logic  
+----------------------------------------------------------------------  
+De BehaviourValidator voert alle interne gedragschecks uit:
+
+4.1 Key Validation  
+- Alle verplichte keys aanwezig?  
+- Zijn de values correct geformatteerd?  
+
+4.2 RulePriority Validation  
+- Zijn alle prioriteitsniveaus numeriek?  
+- Overschrijft geen enkele regel de ML-condities?  
+- Overschrijft ML geen behaviour-regels?  
+
+4.3 Persona Validation  
+- Elke persona moet:  
+  * toneRules bevatten  
+  * replyStyle bevatten  
+  * etiquetteRules bevatten  
+
+4.4 Auto-Mode Validation  
+- Moet beperkingen bevatten:  
+  * maxResponseLength  
+  * forbiddenActions  
+  * blockedCommitTypes  
+  * mandatoryTone  
+
+4.5 Commit Governance Validation  
+- Geen enkele commit-regel mag user-involvement omzeilen.  
+
+4.6 DR Rules Validation  
+- Alle DR-condities moeten expliciet gedefinieerd zijn.  
+
+----------------------------------------------------------------------  
+5. BehaviourPatcher — Internal Patch Logic  
+----------------------------------------------------------------------  
+BehaviourPatcher verwerkt ALLE behaviour updates:
+
+Flow:
+
+1) **Patch ontvangen** via ML of user  
+2) Validatie tegen behaviourPatchSchema  
+3) Conflictdetectie  
+4) SIMULATIE-run uitvoeren  
+5) SEMVER bump bepalen  
+6) Changes aanbrengen  
+7) Hash herberekenen  
+8) Return patched behaviour JSON  
+
+5.1 Patchregels  
+- Patches mogen NOOIT secties verwijderen.  
+- Patches mogen nieuwe velden toevoegen (alleen MINOR of PATCH).  
+- Patches mogen drempelwaarden aanpassen (PATCH).  
+- Patches mogen nooit prioriteiten of persona's verwijderen.  
+
+5.2 Patch Simulatie  
+De backend simuleert het effect van de patch door:
+
+- Prioriteitmodel opnieuw te berekenen  
+- Auto-mode restricties te testen  
+- Reminder-escalatie te simuleren  
+- ML-constraints opnieuw door te lopen  
+
+Mislukt de simulatie → PATCH REJECTED.
+
+----------------------------------------------------------------------  
+6. BehaviourVersionManager — SEMVER Logic  
+----------------------------------------------------------------------  
+SEMVER wordt toegepast op behaviour.avl:
+
+- **MAJOR bump** → structurele verandering  
+- **MINOR bump** → nieuwe regels of persona’s  
+- **PATCH bump** → tuning, escalation-updates, drempelwijzigingen  
+
+SEMVER wordt bepaald door:
+
+```
+if patch.addsNewSection or patch.removesSection:
+    MAJOR
+elif patch.addsNewField:
+    MINOR
+else:
+    PATCH
+```
+
+----------------------------------------------------------------------  
+7. MLBehaviourEngine — Internal Architecture  
+----------------------------------------------------------------------  
+MLBehaviourEngine bestaat uit vijf lagen:
+
+1) MLDataCollector  
+2) MLEvaluator  
+3) MLTrendAnalysis  
+4) MLConstraintChecker  
+5) MLSuggestionGenerator  
+
+ML mag ALLEEN suggesties doen.  
+Het mag niets uitvoeren zonder user-approval.
+
+----------------------------------------------------------------------  
+8. ML Data Flow  
+----------------------------------------------------------------------  
+ML gebruikt deze datastromen:
+
+- Dagelijkse logs (stress, motivatie, status, moveCount)  
+- Reminder-data (escalaties, overdue, efficiëntie)  
+- Planningstructuren  
+- Weekly logbook data  
+- Finance trends (zonder rekeninginfo)  
+- Deadlines  
+- Notulen-acties  
+
+Alle ML-data moet afkomstig zijn uit **avalon-brein**.  
+ML mag nooit externe bronnen gebruiken.
+
+----------------------------------------------------------------------  
+9. Metrics die ML moet berekenen  
+----------------------------------------------------------------------  
+- Procrastination Index  
+- Stress Slope  
+- Motivation Slope  
+- Reminder Effectiveness Score  
+- Seasonal Stagnation Indicator  
+- Movement Ratio  
+- Escalation Severity Index  
+- Week Completion Score  
+
+----------------------------------------------------------------------  
+10. Suggestion Engine Rules  
+----------------------------------------------------------------------  
+ML kan voorstellen doen zoals:
+
+- “Verhoog reminderfrequentie voor taak X.”  
+- “Verlaag stress detection threshold.”  
+- “Verplaats weekclose antwoordtolerantie van 2 → 3 dagen.”  
+- “Introduceer zachte planning-suggestie voor domein Prive.”  
+
+Maar ML mag NOOIT:
+
+- gedrag wijzigen  
+- persona wijzigen  
+- auto-mode regels aanpassen  
+- DR-regels wijzigen  
+- commit policies aanpassen  
+
+----------------------------------------------------------------------  
+11. ML → Behaviour Patch Lifecycle  
+----------------------------------------------------------------------  
+1) ML genereert voorstel  
+2) Backend maakt patchstructuur  
+3) BehaviourValidator controleert patch  
+4) ChatGPT presenteert patch + risico-informatie  
+5) User zegt JA/NEE  
+6) Backend voert patch uit  
+7) SEMVER bump  
+8) Commit naar avalon-brein  
+9) Audit-log schrijft patch-informatie  
+
+----------------------------------------------------------------------  
+12. ML Safety Boundaries  
+----------------------------------------------------------------------  
+ML WORDT GEBLOKKEERD in de volgende gevallen:
+
+- Auto-mode actief  
+- DR actief  
+- behaviour.avl invalid  
+- commit pending  
+- incomplete weekclose  
+- GitHub failure  
+
+ML mag nooit lopen terwijl behaviour niet gevalideerd is.
+
+----------------------------------------------------------------------  
+Einde Document 03  

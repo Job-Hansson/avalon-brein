@@ -1,0 +1,346 @@
+BACKEND SPEC V3.0 — DOCUMENT 04
+OPERATIONAL WORKFLOWS (BACKEND-SIDE)
+====================================
+
+Doel van dit document
+---------------------
+Document 04 beschrijft ALLE operationele backend-workflows van Avalon.
+Het definieert hoe de backend:
+- dagelijkse processen uitvoert,
+- wekelijkse processen uitvoert,
+- alerts en DR-triggers behandelt,
+- kalender-, reminder-, notulen- en financeprocessen verwerkt,
+- bestandsvalidatie en commit-governance implementeert.
+
+Dit document is de complete “how the backend works in practice” laag.
+
+----------------------------------------------------------------------
+1. Dagelijkse Workflows
+----------------------------------------------------------------------
+Deze processen draaien elke dag, afhankelijk van de ingestelde scheduler.
+
+1.1 17:00 — Daily Log Workflow
+------------------------------
+Trigger: SchedulerService (cron)
+
+Stappen:
+1) Scheduler roept LogbookEngine.add_daily_entry_prompt() aan (richting frontend)
+2) Backend wacht op JSON input van ChatGPT:
+   {
+     "action": "logbook.add_daily_entry",
+     "data": { activiteit, domein, stress, motivatie, status, moveCount }
+   }
+3) LogbookEngine slaat entry op in RAM buffer
+4) Backend retourneert bevestiging
+
+Fouten:
+- Incomplete entry → backend vraagt frontend voor hernieuwde input
+- Invalid domain → error en correctieverzoek
+- Buffer failure → DR trigger
+
+1.2 Calendar Sync Workflow
+--------------------------
+Backend controleert:
+- of user items heeft verschoven in Google Calendar
+- of recurring events correct lopen
+- VSB ICS synchronisaties
+
+Flow:
+1) GoogleCalendarService.fetch_updates()
+2) Detecteer wijzigingen
+3) Terugkoppeling naar ChatGPT via JSON
+4) Bij VSB → nieuwe ICS via ICSSenderService
+
+1.3 Reminder Escalation Workflow
+--------------------------------
+Dagelijkse escalatie op basis van moveCount.
+
+Flow:
+1) Backend leest reminderdata uit geheugen
+2) ReminderEngine.escalate_reminder() per taak indien nodig
+3) Output wordt teruggestuurd zodat ChatGPT dit kan verwoorden
+4) MLBehaviourEngine krijgt escalation data als input voor weekmetrics
+
+----------------------------------------------------------------------
+2. Wekelijkse Workflows
+----------------------------------------------------------------------
+Deze processen draaien elke maandag.
+
+2.1 08:00 — Weekclose Workflow
+------------------------------
+Dit is de belangrijkste backend-workflow.
+
+Stappen:
+
+1) Scheduler activeert Weekclose
+2) Backend zet behaviourEngine.freeze_updates() aan
+3) Logboekdata wordt opgehaald uit RAM buffer
+4) XLSXService.create_week_logbook() maakt logbook.xlsx
+5) MLBehaviourEngine.compute_metrics() draait volledige analyse
+6) MLBehaviourEngine.generate_patch_proposals() produceert voorstellen
+7) Backend levert JSON met alle voorstellen aan ChatGPT:
+   {
+     "action": "ml.present_proposals",
+     "data": { proposals[] }
+   }
+8) User beslist per voorstel JA/NEE
+9) Bij JA → BehaviourEngine.apply_patch(...)
+10) Backend maakt audit-log via AuditEngine
+11) Backend commit ALLE nieuwe bestanden (logbook, audit, behaviour.avl)
+
+Commit gebeurt pas NA expliciete user-toestemming.
+
+2.2 09:00 — Finance Check Workflow
+----------------------------------
+Stappen:
+
+1) Backend vraagt ChatGPT:
+   “Zijn er inkomende betalingen deze week?”
+2) User geeft bedragen
+3) FinanceEngine.register_income()
+4) Backend vraagt verdeling → user bepaalt verdeling
+5) FinanceEngine.allocate_funds()
+6) XLSXService.create_finance_sheet()
+7) AuditEngine registreert wijzigingen
+8) Commit op verzoek user
+
+----------------------------------------------------------------------
+3. Kalender Workflows
+----------------------------------------------------------------------
+3.1 Create Event Workflow
+-------------------------
+Stappen:
+1) ChatGPT stuurt JSON:
+{
+  "action": "calendar.create_event",
+  "data": { ... }
+}
+2) CalendarEngine.validate_event_data()
+3) Overlap check
+4) GoogleCalendarService.create_event()
+5) Indien domein=VSB:
+   - ICSSenderService.generate_ics()
+   - ICSSenderService.send_ics()
+6) Metadata logging
+7) Backend stuurt JSON terug naar ChatGPT
+
+3.2 Update Event Workflow
+-------------------------
+1) CalendarEngine.detect_changes()
+2) GoogleCalendarService.update_event()
+3) VSB → nieuwe ICS
+4) Metadata update
+5) JSON response
+
+3.3 Recurring Event Workflow
+----------------------------
+Backend moet:
+- recurring pattern detecteren
+- einde-datum verplicht maken
+- ICS regeneration per instance doen voor VSB
+
+----------------------------------------------------------------------
+4. Reminder Workflows
+----------------------------------------------------------------------
+4.1 Create Reminder Workflow
+----------------------------
+1) ChatGPT stuurt create_reminder JSON
+2) ReminderEngine.validate()
+3) ReminderEngine.attach_to_task()
+4) Domain kleur toepassen
+5) JSON bevestiging
+
+4.2 Escalation Workflow (Dagelijks)
+-----------------------------------
+1) moveCount check
+2) escalate_reminder()
+3) escalatie wordt naar MLBehaviourEngine doorgegeven
+
+----------------------------------------------------------------------
+5. Logboek Workflows
+----------------------------------------------------------------------
+5.1 Daily Log Workflow → zie sectie 1.1
+
+5.2 Compile Weekly Log Workflow
+-------------------------------
+Dit is onderdeel van weekclose:
+
+Stappen:
+1) LogbookEngine haalt buffered entries op
+2) XLSXService.make_logbook()
+3) File wordt gevalideerd
+4) Bij fout → DR trigger
+5) Succes → audit entry → commit candidate
+
+----------------------------------------------------------------------
+6. Finance Workflows
+----------------------------------------------------------------------
+6.1 Income Recording Workflow
+-----------------------------
+1) ChatGPT stuurt JSON met bedrag
+2) FinanceEngine.register_income()
+3) Validatie (geen negatieve waarden)
+4) Audit logging
+
+6.2 Fund Allocation Workflow
+----------------------------
+1) ChatGPT stuurt JSON:
+   {
+     "action": "finance.allocate_funds",
+     "data": { potjesverdeling }
+   }
+2) FinanceEngine.update_sheet()
+3) Validatie van sheetstructuur
+4) Audit logging
+
+----------------------------------------------------------------------
+7. Notulen Workflows
+----------------------------------------------------------------------
+7.1 Save Notulen Workflow
+-------------------------
+Flow:
+1) ChatGPT stuurt notulen in JSON
+2) NotulenEngine.save_notulen()
+3) Validatie van markdown
+4) Audit logging
+5) Commit op verzoek
+
+7.2 Extract Action Points Workflow
+----------------------------------
+1) NotulenEngine.parse_markdown()
+2) Extracteer bullet points / actiewoorden
+3) JSON terug aan ChatGPT ter verwerking
+
+7.3 List Notulen Workflow
+-------------------------
+Backend retourneert lijst van bestanden voor project.
+
+----------------------------------------------------------------------
+8. ML Workflows (Backend-Side)
+----------------------------------------------------------------------
+8.1 Metrics Workflow
+--------------------
+1) MLBehaviourEngine verzamelt data uit avalon-brein
+2) Normaliseer en valideer inputs
+3) Bereken metrics:
+   - procrastination index
+   - stress slope
+   - motivation slope
+   - reminder effectiveness
+   - seasonal stagnation
+4) Retourneer metrics naar backend-layer
+
+8.2 Suggestion Workflow
+------------------------
+1) ML genereert PATCH-voorstellen
+2) Backend valideert voorstellen
+3) Backend stuurt voorstellen naar ChatGPT
+
+----------------------------------------------------------------------
+9. Commit Governance Workflow
+----------------------------------------------------------------------
+Commit gebeurt ALLEEN als:
+
+1) User JA zegt  
+2) Validatie succesvol is  
+3) Hashing klopt  
+4) AuditEngine heeft log geschreven  
+
+Flow:
+1) GitHubService.prepare_commit()
+2) GitHubService.commit()
+3) GitHubService.verify_commit()
+4) JSON terug naar ChatGPT
+
+Commit verboden wanneer:
+- auto-mode actief  
+- DR actief  
+- behaviour.avl inconsistent  
+- user geen antwoord geeft  
+
+----------------------------------------------------------------------
+10. DR Workflows
+----------------------------------------------------------------------
+10.1 DR Detection Workflow
+--------------------------
+Elke engine kan DR triggeren.
+
+Flow:
+1) detecteer fout (corrupt file, missing file, invalid json)
+2) DRDetector.freeze_system()
+3) AlertEngine.send_critical()
+4) DRResolver.identify_safe_versions()
+5) JSON met herstelopties terug naar ChatGPT
+
+10.2 DR Resolution Workflow
+---------------------------
+Flow:
+1) User kiest SAFE RESTORE / KEEP & REPAIR / CANCEL
+2) DRResolver.execute_restore()
+3) DRValidator.verify()
+4) AuditEngine.log_dr_event()
+5) Unfreeze systeem
+
+10.3 DR Validation Workflow
+---------------------------
+Valideert:
+- behaviour.avl  
+- xlsx  
+- finance  
+- notulen  
+- chatlogs  
+
+Bij fout → nieuwe DR-cycle.
+
+----------------------------------------------------------------------
+11. Alert Workflows
+----------------------------------------------------------------------
+11.1 INFO Workflow
+-------------------
+AlertEngine.send_info()
+
+11.2 IMPORTANT Workflow
+------------------------
+AlertEngine.send_important()
+
+11.3 CRITICAL Workflow
+----------------------
+- Fout in ICS pipeline  
+- GitHub failure  
+- DR-start  
+- behaviour.avl corrupt  
+
+Flow:
+1) AlertEngine.send_critical()
+2) Scheduler suspend
+3) DR start
+
+----------------------------------------------------------------------
+12. Weekly Validation Workflow
+----------------------------------------------------------------------
+Tijdens weekclose moet backend:
+
+1) validate_behaviour()  
+2) validate_logbook()  
+3) validate_finance()  
+4) validate_notulen_structure()  
+5) validate_chatlog()  
+6) validate_audit_structure()  
+
+Bij één mismatch → DR.
+
+----------------------------------------------------------------------
+13. Scheduler Workflows
+----------------------------------------------------------------------
+SchedulerService definieert:
+
+- 17:00 daily log  
+- 08:00 weekclose  
+- 09:00 finance  
+- Periodieke ICS retry  
+- ML analysis  
+
+Scheduler moet persistent draaien en DR aware zijn.
+
+----------------------------------------------------------------------
+Einde Document 04

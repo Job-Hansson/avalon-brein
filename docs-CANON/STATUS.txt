@@ -1,0 +1,4 @@
+NOTULEN V2.2 = actuele functionele afspraken
+MEGA OPDRACHT V6.0 Doc 01-07 = user-side specs
+BACKEND SPEC V3.0 Doc 01–07 = backend-side specs
+Alles hierboven geldt totdat ik expliciet een nieuwe versie maak.

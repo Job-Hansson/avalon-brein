@@ -1,0 +1,350 @@
+BACKEND SPEC V3.0 — DOCUMENT 01
+BACKEND ARCHITECTURE OVERVIEW
+=============================
+
+Doel van dit document
+---------------------
+Dit document beschrijft de volledige backend-architectuur van AVALON:
+- hoe de backend werkt,
+- hoe deze communiceert met ChatGPT en GitHub,
+- welke engines bestaan,
+- hoe services met elkaar interacteren,
+- hoe scheduling, alerts, ICS, Google Calendar en DR worden afgehandeld,
+- welke veiligheidslagen aanwezig zijn.
+
+Document 01 is de kapstok van de gehele Backend Spec Set.
+
+----------------------------------------------------------------------
+1. Architectuur-overzicht (High-Level)
+----------------------------------------------------------------------
+De backend van AVALON bestaat uit:
+
+1) REST API (JSON only)
+2) Engines
+3) Services
+4) Scheduler
+5) Storage governance (GitHub persisteren)
+6) Alert infrastructuur (Telegram)
+7) ICS-generation pipeline
+8) Google Calendar Pipeline
+9) DR (Disaster Recovery) Layer
+10) Commit Governance Layer
+
+De backend draait op bijvoorbeeld **Railway** en communiceert via HTTPS.
+
+----------------------------------------------------------------------
+2. Kernrollen van de Backend
+----------------------------------------------------------------------
+De backend voert ALLE “echte wereld”-acties uit zoals:
+
+- Google Calendar events maken / updaten / verwijderen  
+- ICS-bestanden genereren voor Outlook  
+- ICS per mail verzenden  
+- Weekly logbooks genereren (.xlsx)  
+- Weekly finance sheets genereren (.xlsx)  
+- Audit logs genereren  
+- behaviour.avl lezen en updaten  
+- ML-metrics berekenen  
+- Bestanden committen naar GitHub (avalon-brein)  
+- Validatie van bestanden  
+- Reliability checks  
+- DR-processen uitvoeren  
+
+De backend **interpreteert NOOIT natuurlijke taal**.  
+Alle acties komen binnen als **gestructureerde JSON** van het brein.
+
+----------------------------------------------------------------------
+3. Backend Workflow (R1 Mode)
+----------------------------------------------------------------------
+R1 = ChatGPT genereert alleen COMMANDS.  
+De backend voert deze strikt uit.
+
+Flow:
+
+1) ChatGPT genereert JSON-command.  
+2) Backend valideert JSON via schema.  
+3) Backend voert actie uit:  
+   - GitHub read/write  
+   - Calendar manipulation  
+   - ICS generation  
+   - Excel generation  
+4) Backend retourneert JSON-resultaat.  
+5) ChatGPT vertaalt dat naar mensentaal.
+
+----------------------------------------------------------------------
+4. Repository-architectuur
+----------------------------------------------------------------------
+Backend werkt met twee repos:
+
+1) avalon-brein (DATA repository)
+   - behaviour.avl  
+   - chatlogs  
+   - logbooks  
+   - finance  
+   - audit logs  
+   - notulen  
+
+2) avalon-backend (CODE repository)
+   - broncode  
+   - engines  
+   - services  
+   - schemas  
+   - Docker config  
+   - Railway config  
+
+Backend kan alleen naar **avalon-brein** schrijven, niet naar avalon-backend.
+
+----------------------------------------------------------------------
+5. Backend Modules (Engines)
+----------------------------------------------------------------------
+De backend bestaat uit 12 Engines:
+
+1) CalendarEngine  
+2) ReminderEngine  
+3) LogbookEngine  
+4) FinanceEngine  
+5) BehaviourEngine  
+6) MLBehaviourEngine  
+7) PersonaEngine  
+8) AutoModeEngine  
+9) DashboardEngine  
+10) NotulenEngine  
+11) AlertEngine  
+12) AuditEngine  
+
+Alle engines zijn pure modules: geen side effects buiten Services.
+
+----------------------------------------------------------------------
+6. Services
+----------------------------------------------------------------------
+De backend heeft services die de engines ondersteunen:
+
+- **GitHubService**  
+  * lezen/schrijven kopen in avalon-brein  
+  * commits met SHA  
+  * rollback  
+
+- **GoogleCalendarService**  
+  * events creëren  
+  * updates verwerken  
+  * recurring events ondersteunen  
+
+- **ICSSenderService**  
+  * ICS genereren  
+  * per mail versturen  
+  * retry mechanisme  
+
+- **TelegramService**  
+  * INFO / IMPORTANT / CRITICAL alerts  
+
+- **SchedulerService**  
+  * dagelijkse en wekelijkse taken  
+  * ICS retry scheduling  
+  * ML-cycle timing  
+
+- **XLSXService**  
+  * Weekly Log Excel  
+  * Weekly Finance Excel  
+
+----------------------------------------------------------------------
+7. Command Input Model
+----------------------------------------------------------------------
+ChatGPT stuurt opdrachten strikt als JSON, bijv.:
+
+{
+  "action": "calendar.create_event",
+  "domain": "VSB",
+  "title": "Vergadering Bouwteam",
+  "datetime": "2025-05-12T10:00",
+  "project": "Project-X",
+  "tags": ["verga", "VSB"]
+}
+
+Backend moet:
+- validatie uitvoeren  
+- juiste engine triggeren  
+- response sturen in JSON  
+
+----------------------------------------------------------------------
+8. Backend Execution Guarantees
+----------------------------------------------------------------------
+Backend moet ALTIJD:
+
+1) deterministisch gedrag vertonen  
+2) validatie uitvoeren vóór acties  
+3) no-cascade policy volgen (fout op één actie → stop)  
+4) logging uitvoeren bij kritieke operaties  
+5) audit genereren bij relevante events  
+6) DR triggeren bij inconsistenties  
+
+----------------------------------------------------------------------
+9. Security Rules (Backend-side)
+----------------------------------------------------------------------
+Backend mag NOOIT:
+
+- onbekende JSON commands uitvoeren  
+- behaviour.avl wijzigen zonder user-toestemming  
+- commits doen zonder toestemming  
+- ongestructureerde data opslaan  
+- kalenderitems weggooien zonder user-opdracht  
+- notulen genereren zonder broninput  
+
+Alle acties worden gecontroleerd door:
+
+- schema-validator  
+- rules-checker  
+- governance-engine  
+
+----------------------------------------------------------------------
+10. DR Infrastructure
+----------------------------------------------------------------------
+Iedere engine kan DR triggeren.
+
+Flow:
+- detect error  
+- freeze system  
+- generate alert  
+- search last safe version via GitHub history  
+- propose restore  
+- execute chosen restore  
+- validate  
+- audit  
+- unfreeze  
+
+DR bestaat uit:
+- DRDetector  
+- DRResolver  
+- DRValidator  
+- DRAuditWriter  
+
+Backend MOET herstelbare versies kunnen vinden via GitHub commit history.
+
+----------------------------------------------------------------------
+11. ICS Pipeline
+----------------------------------------------------------------------
+ICS Pipeline bestaat uit:
+
+1) ICSGenerator  
+2) ICSSerializer  
+3) EmailTransporter  
+4) ICSRetryHandler  
+
+ICS wordt ALLEEN gebruikt voor:
+- VSB afspraken  
+- VSB reminders  
+
+ICS moet voldoen aan:
+- RFC5545  
+- geldige VEVENT and VCALENDAR structuur  
+
+----------------------------------------------------------------------
+12. Google Calendar Pipeline
+----------------------------------------------------------------------
+GoogleCalendarService moet:
+
+- events creëren  
+- recurring patterns ondersteunen  
+- updates synchroniseren  
+- detecteren wanneer user handmatig iets verplaatst  
+- kalender-inconsistenties oplossen  
+
+Gmail is de bron voor:
+- privé  
+- school  
+- bijbaan  
+
+Outlook via ICS is de bron voor:
+- VSB  
+
+----------------------------------------------------------------------
+13. File Integrity System
+----------------------------------------------------------------------
+Backend moet elk bestand valideren:
+
+behaviour.avl:
+- geldige JSON  
+- verplichte keys  
+- schema match  
+
+logbook.xlsx:
+- juiste tabbladen  
+- juiste kolommen  
+- geen corrupte cellen  
+
+finance.xlsx:
+- sheets: Potjes / Transacties  
+- kolommen intact  
+
+notulen:
+- geldige markdown  
+- juiste folderstructuur  
+
+audit files:
+- correcte velden  
+
+----------------------------------------------------------------------
+14. Commit Governance (Backend Enforcement)
+----------------------------------------------------------------------
+Backend voert commit uit:
+
+ALLEEN na:
+- user-goedkeuring  
+- validatie  
+- hashing  
+- audit-entry  
+
+Backend weigert commit bij:
+- auto-mode  
+- inconsistent behaviour.avl  
+- DR state  
+- ML waiting loop  
+
+----------------------------------------------------------------------
+15. Schedulers
+----------------------------------------------------------------------
+SchedulerService moet:
+- 17:00 dagelijkse logvraag ondersteunen  
+- 08:00 weekclose ondersteunen  
+- 09:00 finance check ondersteunen  
+- ICS retries inplannen  
+- ML analyse op maandag uitvoeren  
+
+Scheduler moet persistent zijn en betrouwbaar werken op Railway.
+
+----------------------------------------------------------------------
+16. Response Model
+----------------------------------------------------------------------
+Backend antwoordt ALTIJD in JSON:
+
+{
+  "status": "success",
+  "message": "...",
+  "data": { ... }
+}
+
+Of bij error:
+
+{
+  "status": "error",
+  "error": {
+    "type": "...",
+    "details": "...",
+    "code": 400
+  }
+}
+
+----------------------------------------------------------------------
+17. Persona-Awareness (Backend Perspective)
+----------------------------------------------------------------------
+Backend kent de persona niet, maar verwerkt metadata:
+
+{
+  "persona": "formal"
+}
+
+Dit bepaalt:
+- hoe ChatGPT het antwoord formatteert  
+- NIET hoe backend werkt  
+
+----------------------------------------------------------------------
+Einde Document 01

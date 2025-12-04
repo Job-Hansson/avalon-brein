@@ -1,0 +1,300 @@
+BACKEND SPEC V3.0 — DOCUMENT 07
+DISASTER RECOVERY & STORAGE INTEGRITY (BACKEND-SIDE)
+====================================================
+
+Doel van dit document
+---------------------
+Dit document beschrijft ALLE backend-technische regels, processen,
+validaties, checks, herstelpaden en beschermingslagen rondom:
+
+- Disaster Recovery (DR)
+- bestandsintegriteit
+- herstel van behaviour.avl
+- herstel van logbooks, finance, notulen en chatlogs
+- hash-validatie
+- rollback via GitHub
+- interactie tussen DR, governance en ML
+
+Document 07 vormt samen met MEGA OPDRACHT Document 07 het volledige DR-systeem, maar dit document is backend-specifiek.
+
+----------------------------------------------------------------------
+1. DR Architectuur — High Level
+----------------------------------------------------------------------
+De DR-architectuur bestaat uit vier subsystemen:
+
+1) **DRDetector**  
+   - detecteert fouten, corruptie, inconsistente states
+
+2) **DRResolver**  
+   - bepaalt mogelijke herstelpunten
+   - voert SAFE RESTORE / KEEP & REPAIR uit
+
+3) **DRValidator**  
+   - valideert of de herstelde versie correct is
+   - valideert hash, structuur, schema, integriteit
+
+4) **DRAuditWriter**  
+   - schrijft finale audit entries van de DR-procedure
+
+DR is de hoogste autoriteit: alles stopt zodra DR wordt geactiveerd.
+
+----------------------------------------------------------------------
+2. DR Triggercondities (Backend-Side)
+----------------------------------------------------------------------
+Backend moet DR ONMIDDELLIJK starten wanneer:
+
+2.1 behaviour.avl corrupt is:
+- JSON parse error
+- missen van verplichten keys
+- schema mismatch
+- inconsistent rulePriorityModel
+- hash mismatch
+
+2.2 logbook.xlsx corrupt is:
+- onleesbaar
+- ontbrekende tabbladen
+- kolommen missen
+
+2.3 finance.xlsx corrupt is:
+- ontbrekende sheets
+- verkeerde celstructuur
+- negatieve waarden zonder user-input
+
+2.4 notulen corrupt of missing:
+- folder ontbreekt
+- markdown niet leesbaar
+
+2.5 chatlogs ontbreken of leeg zijn
+- file missing
+- file size = 0
+- weeknummer mismatch
+
+2.6 audit-log corrupt is:
+- ontbrekende verplichte velden
+- foutieve structuur
+
+2.7 GitHub commit failures:
+- write attempt exceeded retry limit
+
+2.8 ICS critical failure:
+- ICS generator crashed > 3 retries
+
+----------------------------------------------------------------------
+3. DR Freeze Rules
+----------------------------------------------------------------------
+Zodra DR geactiveerd wordt moet backend ALLES pauzeren:
+
+- geen ML  
+- geen commits  
+- geen behaviour patches  
+- geen scheduler tasks  
+- geen persona updates  
+- geen recurring ICS operations  
+
+Alleen DR-processen blijven actief.
+
+----------------------------------------------------------------------
+4. DR Procedure (8-Staps Backend Flow)
+----------------------------------------------------------------------
+Stap 1 — Freeze system  
+- State = DR  
+- Auto-mode/onafgemaakte patches worden direct gestopt
+
+Stap 2 — Send CRITICAL alert  
+AlertEngine stuurt binnen <3 sec een bericht naar Telegram:
+- type fout  
+- bestand  
+- impact  
+- mogelijke data loss  
+- herstelopties volgen later  
+
+Stap 3 — Diagnose  
+DRResolver detecteert:
+- welke file kapot is
+- wat de oorzaak is (corruptie, missing, commit failure, ICS faillure)
+- welke restore-points bestaan via GitHub history
+
+Stap 4 — Restore Options Building  
+DRResolver maakt lijst met opties:
+1) SAFE RESTORE → laatste geldige versie  
+2) KEEP & REPAIR → patchbaar deel behouden  
+3) CANCEL → systeem blijft frozen  
+
+Alle opties worden samen met hashBefore/hashAfter weergegeven.
+
+Stap 5 — User Decision  
+Backend stuurt JSON naar ChatGPT:
+{
+  "action": "dr.present_options",
+  "data": { ... }
+}
+
+ChatGPT vraagt user welke optie gekozen wordt.
+
+Stap 6 — Execution of Restore  
+AFHANKELIJK VAN DE KEUZE:
+
+SAFE RESTORE:
+- haal laatste geldige versie uit GitHub
+- overschrijf lokale file
+
+KEEP & REPAIR:
+- alleen reparaties die veilig zijn
+- geen data mag worden geraden
+- backend weigert als repair risk HIGH is
+
+Stap 7 — Validation  
+DRValidator voert uit:
+- JSON validatie
+- XLSX validatie
+- markdown integriteit
+- structurele checks
+- hashing verifiëren
+- audit consistency
+
+Mislukt → nieuwe DR-cyclus.
+
+Stap 8 — Audit & Unfreeze  
+DRAuditWriter maakt audit entry:
+- fouttype
+- herstelmethode
+- userkeuze
+- timestamps
+- commitSHA
+- hashBefore & hashAfter
+
+Daarna:
+- State = NORMAL
+- scheduler hervat
+- ML wordt weer geactiveerd
+
+----------------------------------------------------------------------
+5. File Integrity Rules (Backend Deep Layer)
+----------------------------------------------------------------------
+5.1 behaviour.avl  
+- alle verplichte keys  
+- geldige personaProfiles  
+- geldige autoModeRules  
+- geldige reminderEscalationRules  
+- correcte SEMVER  
+- SHA256 moet kloppen  
+
+5.2 logbooks  
+- Sheet “Week” moet bestaan  
+- kolommen:
+  * activiteit  
+  * domein  
+  * motivatie  
+  * stress  
+  * status  
+  * moveCount  
+- geen lege kolomnamen  
+
+5.3 finance  
+- sheets: Potjes, Transacties  
+- geen negatieve waarden tenzij user dat aangeeft  
+- correcte celstructuur  
+
+5.4 notulen  
+- folderstructuur correct  
+- files moeten md zijn  
+- min. 1 header aanwezig  
+
+5.5 chatlogs  
+- filename = YYYY-WW-Chat.md  
+- niet leeg  
+- chronologisch opgebouwd  
+
+5.6 audit logs  
+- alle verplichte velden:
+  * oldVersion  
+  * newVersion  
+  * patchType  
+  * rationale  
+  * riskLevel  
+  * hashBefore  
+  * hashAfter  
+  * timestamp  
+  * commitSHA  
+
+----------------------------------------------------------------------
+6. DR & Governance Integratie
+----------------------------------------------------------------------
+DR heeft prioriteit boven governance.  
+Tijdens DR:
+
+- commits OP SLOT  
+- patches OP SLOT  
+- SEMVER OP SLOT  
+- rule changes OP SLOT  
+
+Na DR:
+- governance voert volledige validatie uit
+- SEMVER bump verplicht
+- commit na user-approval
+
+----------------------------------------------------------------------
+7. DR & ML Integratie
+----------------------------------------------------------------------
+Tijdens DR:
+
+- ML wordt volledig gepauzeerd  
+- metrics worden NIET berekend  
+- suggesties worden NIET verwerkt  
+
+ML wordt hervat pas nadat DRValidator het systeem veilig verklaart.
+
+----------------------------------------------------------------------
+8. DR & Scheduler Integratie
+----------------------------------------------------------------------
+Scheduler pauzeert tijdens DR:
+
+- 08:00 weekclose → uitgesteld  
+- 09:00 finance check → uitgesteld  
+- 17:00 daglog → uitgesteld  
+- ICS retries → geblokkeerd  
+
+Scheduler hervat direct bij unfreeze.
+
+----------------------------------------------------------------------
+9. DR & ICS Pipeline
+----------------------------------------------------------------------
+ICS pipeline heeft speciale bescherming:
+
+- 3 failed retries → DR  
+- ICS-generator moet RFC5545-valid zijn  
+- ICS-bestanden mogen geen corrupte velden bevatten  
+- ICS-mail failures mogen geen stilte zijn → altijd alert
+
+Bij DR:
+- ICS queue wordt geleegd  
+- ICS operations worden geblokkeerd tot herstel
+
+----------------------------------------------------------------------
+10. Restore Sources
+----------------------------------------------------------------------
+Alle restores gebeuren vanuit GitHub history:
+
+- Geen lokale reconstructies  
+- Geen gissingen  
+- Geen nieuwe data  
+- Alleen bestaande snapshots  
+
+Bij gebrek aan geldige restore-points moet backend user extra informatie vragen.
+
+----------------------------------------------------------------------
+11. Final DR Guarantees (Backend-Side)
+----------------------------------------------------------------------
+Backend moet het volgende GARANDEREN:
+
+1) Geen dataverlies zonder userkennis  
+2) Geen stilzwijgende fouten  
+3) Altijd een herstelpad  
+4) Geen automatische datafabricatie  
+5) Geen commits tijdens DR  
+6) Geen ML tijdens DR  
+7) Geen wijziging van regels tijdens DR  
+8) Alle DR-acties worden geaudit  
+
+----------------------------------------------------------------------
+Einde Document 07
