@@ -1,0 +1,33 @@
+{
+  "calendar.create_event": {
+    "required": ["title", "start", "duration_minutes", "domain"],
+    "optional": ["location", "project", "tags", "recurrence"],
+    "schema_version": 2,
+    "example": {
+      "action": "calendar.create_event",
+      "data": {
+        "title": "Voorbeeldafspraak",
+        "start": "2025-12-10T15:00:00",
+        "duration_minutes": 60,
+        "domain": "Prive",
+        "location": "Thuis",
+        "tags": ["Prive", "afspraak"]
+      }
+    }
+  },
+
+  "task.create": {
+    "required": ["title", "domain"],
+    "optional": ["due", "notes", "priority", "tags", "project"],
+    "schema_version": 2,
+    "example": {
+      "action": "task.create",
+      "data": {
+        "title": "Voorbeeldtaak",
+        "domain": "VSB",
+        "due": "2025-12-11T18:00:00",
+        "priority": "medium"
+      }
+    }
+  }
+}
