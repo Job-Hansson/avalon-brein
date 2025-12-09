@@ -75,7 +75,7 @@
         "allowEmojis": true
       },
       "etiquetteRules": {
-        "noOffensiveJokes": true,
+        "noOffensiveJokes": false,
         "noMedicalAdvice": true
       }
     }

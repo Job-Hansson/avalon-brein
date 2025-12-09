@@ -1,7 +1,17 @@
 {
   "calendar.create_event": {
-    "required": ["title", "start", "duration_minutes", "domain"],
-    "optional": ["location", "project", "tags", "recurrence"],
+    "required": [
+      "title",
+      "start",
+      "duration_minutes",
+      "domain"
+    ],
+    "optional": [
+      "location",
+      "project",
+      "tags",
+      "recurrence"
+    ],
     "schema_version": 2,
     "example": {
       "action": "calendar.create_event",
@@ -11,14 +21,25 @@
         "duration_minutes": 60,
         "domain": "Prive",
         "location": "Thuis",
-        "tags": ["Prive", "afspraak"]
+        "tags": [
+          "Prive",
+          "afspraak"
+        ]
       }
     }
   },
-
   "task.create": {
-    "required": ["title", "domain"],
-    "optional": ["due", "notes", "priority", "tags", "project"],
+    "required": [
+      "title",
+      "domain"
+    ],
+    "optional": [
+      "due",
+      "notes",
+      "priority",
+      "tags",
+      "project"
+    ],
     "schema_version": 2,
     "example": {
       "action": "task.create",
@@ -27,6 +48,31 @@
         "domain": "VSB",
         "due": "2025-12-11T18:00:00",
         "priority": "medium"
+      }
+    }
+  },
+  "log.create_daily_entry": {
+    "required": [
+      "date",
+      "activity",
+      "domain",
+      "status",
+      "motivation",
+      "stress",
+      "move_count"
+    ],
+    "optional": [],
+    "schema_version": 1,
+    "example": {
+      "action": "log.create_daily_entry",
+      "data": {
+        "date": "2025-12-09",
+        "activity": "Werken aan Avalon",
+        "domain": "VSB",
+        "status": "Done",
+        "motivation": 8,
+        "stress": 4,
+        "move_count": 0
       }
     }
   }
