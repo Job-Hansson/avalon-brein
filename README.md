@@ -12,12 +12,12 @@ Deze repo is de enige bron van waarheid voor:
 
 Verplichte map-structuur:
 
-/rules-and-behaviour,
-/chats,
-/logbooks,
-/finance,
-/audit-log,
-/notulen,
-/ml,
-/dashboards,
+/rules-and-behaviour
+/chats
+/logbooks
+/finance
+/audit-log
+/notulen
+/ml
+/dashboards
 /docs-CANON (alle canon-specs, inclusief STAPPENPLAN & SPEC_LOCK)

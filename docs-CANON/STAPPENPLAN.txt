@@ -1,0 +1,300 @@
+# ⭐ **PHASE 0 — Bootstrapping & Compliance Foundation (Mandatory)**
+
+**Goal: enforce all contract constraints before writing a single line of functional code.**
+
+### 0.1 Required repos
+
+* **avalon-brein**: installed with skeleton folders, `.gitignore`, `README`, empty audit-log, baseline behaviour.avl (v1.0.0).
+* **avalon-backend**: code only.
+
+### 0.2 Mandatory compliance setup
+
+* Define strictly allowed file paths that backend is ever permitted to write.
+* Implement environment isolation + secret governance rules.
+* Add a “spec-lock” document summarizing all constraints from the 18 files.
+
+### 0.3 Hashing & integrity baseline
+
+* Compute SHA-256 for all initial brein repo files and store in `audit-log/initial-bootstrap.md`.
+
+---
+
+# ⭐ **PHASE 1 — Contract Language, JSON Schemas & Cross-Engine Vocabulary**
+
+**This is the heart of the whole system.**
+Every action must be validated using:
+
+### 1.1 Global JSON Envelope Schema
+
+Mandatory fields:
+
+* `action`
+* `source`
+* `timestamp`
+* `context`
+* `payload`
+* `session`
+* `autoMode`
+* `hashPreconditions`
+
+### 1.2 Per-engine schemas
+
+Define JSON structures for:
+
+* Calendar
+* Reminder
+* Logbook
+* Finance
+* Notulen
+* ML proposal
+* Behaviour update
+* Commit governance
+* DR triggers
+* Chat archiving
+
+### 1.3 Cross-Engine Vocabulary
+
+Central type definitions:
+
+* Domain set
+* Tag set
+* Risk flags
+* Persona set
+* Mandatory behaviour fields
+* WeekClose structure
+
+✔ Ensures backend + brein speak **one exact protocol**.
+
+---
+
+# ⭐ **PHASE 2 — Behaviour Engine (Full, not partial)**
+
+This must be finished and validated **before anything else**.
+
+### 2.1 behaviour.avl v1.0.0 structure
+
+Produce the minimal mandatory version including:
+
+* Behaviour constraints
+* Governance rules
+* ML patch rules
+* Auto-mode boundaries
+* Persona & tone selectors
+* Reminder escalation logic
+* Risk assessment model
+* Commit permissions
+* All priority groups
+
+### 2.2 BehaviourValidator
+
+Must enforce:
+
+* Presence of all required keys
+* Type constraints
+* Forbidden patterns
+* SemVer validity
+* Cross-rule consistency
+
+### 2.3 BehaviourVersioning
+
+* Auto-bump
+* Patch/minor/major rules
+* Behaviour diffs
+
+### 2.4 BehaviourLoader
+
+* No caching allowed without hash validation
+* Must load from GitHub via SHA-verified fetch
+
+---
+
+# ⭐ **PHASE 3 — GitHub Governance & Audit Subsystem (Full)**
+
+No engines may write anything until this system is complete.
+
+### 3.1 GitHubService (strict mode)
+
+* Validate SHA before write
+* Confirm path is allowed
+* Confirm file type
+* Confirm diff does not break schema
+* No writes during DR or auto-mode
+
+### 3.2 AuditEngine
+
+Generates audit files for:
+
+* Commits
+* Behaviour changes
+* Weekly logs
+* Finance updates
+* DR events
+
+### 3.3 CommitFlowEngine
+
+* Pre-commit verification
+* Post-commit lineage registration
+* Mandatory user approval flow (except internal auto-writes allowed by spec)
+
+---
+
+# ⭐ **PHASE 4 — Core Data Engines (Foundation for everything else)**
+
+### 4.1 Logbook Engine
+
+* RAM buffer
+* XLSX generator
+* Weekly rollover
+* Daily entry validation
+* Context-required tags
+
+### 4.2 Finance Engine
+
+* Potjes model
+* Transaction validation
+* Weekly finance file generator
+* No negative amounts unless explicitly approved
+
+### 4.3 Notulen Engine
+
+* Structured markdown generation
+* Action extraction
+* Integrity constraints
+
+These must be complete **before** scheduler and ML.
+
+---
+
+# ⭐ **PHASE 5 — Calendar & Reminder Engines**
+
+Calendar logic depends on:
+
+* Behaviour
+* Logbook
+* Commit governance
+* Domain mapping
+* Reminder escalation rules
+
+### 5.1 CalendarEngine
+
+* Conflict detection
+* Domain tagging
+* ICS generator (restricted to VSB)
+
+### 5.2 ReminderEngine
+
+* Strict escalation logic
+* Movement count
+* Behaviour-aware constraints
+* Expiry logic based on weekly close
+
+---
+
+# ⭐ **PHASE 6 — Chat Logging & Versioned Context Engine**
+
+Required by documents but missing entirely.
+
+### 6.1 ChatLogEngine
+
+* Store chats in `/chats/YYYY-MM/`
+* Compute session hash
+* Create monthly roll-ups
+
+### 6.2 Context Replay
+
+* Backend must deliver a list of relevant logs on request.
+
+---
+
+# ⭐ **PHASE 7 — Scheduler & Temporal Governance**
+
+The scheduler cannot precede all previous phases.
+
+### Scheduler tasks:
+
+* 17:00 daily log
+* 08:00 week close
+* 09:00 finance
+* Reminder escalations
+* ML availability gatekeeping
+
+Enforces behaviour rules.
+
+---
+
+# ⭐ **PHASE 8 — ML Metrics + ML Proposal Engine**
+
+Now safe to implement.
+
+### 8.1 Metrics subsystem
+
+All 15+ metrics must be implemented:
+
+* Procrastination index
+* Consistency index
+* Effort slope
+* Stress estimation
+* Logbook delta metrics
+* Finance habits
+* Lingual sentiment from chats
+* Seasonal stagnation
+* Etc.
+
+### 8.2 ML Proposal Engine
+
+* Proposes improvements only
+* Risk classification
+* Behaviour cross-checks
+* Cannot make structural changes
+
+Must integrate with commit governance + user approval flows.
+
+---
+
+# ⭐ **PHASE 9 — DR System (Full Spec Implementation)**
+
+Must reflect the detailed 8-step DR process in the documents.
+
+### 9.1 DRDetector
+
+Triggers include:
+
+* Missing logbook files
+* Missing finance files
+* Behaviour hash mismatch
+* ICS failure > retry
+* GitHub write inconsistency
+* Data corruption
+
+### 9.2 DRResolver
+
+* Freezes engines
+* Asks user for recovery option
+* Restores snapshot
+* Writes DR audit entry
+* Unfreezes system
+
+### 9.3 DRValidator
+
+Ensures integrity after recovery.
+
+---
+
+# ⭐ **PHASE 10 — Final Hardening, Security, & Pen-Testing**
+
+Includes:
+
+* Fuzzing
+* Schema stress testing
+* Race condition testing
+* Behaviour mutation tests
+* ML adversarial tests
+* ICS injection tests
+* GitHub tamper testing
+
+---
+
+# ⭐ **PHASE 11 — Persona Layer, Tone Engine & UX Polishing**
+
+Only after entire system is stable.
+
